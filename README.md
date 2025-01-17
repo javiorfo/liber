@@ -6,6 +6,8 @@
 - Iosevka Nerd Font
 
 ## Patches
+- [Scrollback Ringbuffer](https://st.suckless.org/patches/scrollback/st-scrollback-ringbuffer-0.9.2.diff)
+- [Scrollback Mouse](https://st.suckless.org/patches/scrollback/st-scrollback-mouse-0.9.2.diff)
 - [Glyph Wide Support](https://st.suckless.org/patches/glyph_wide_support/st-glyph-wide-support-20220411-ef05519.diff)
 
 ## Installation
