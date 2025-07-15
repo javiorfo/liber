@@ -1,0 +1,17 @@
+[package]
+name = "epub2"
+version = "0.1.0"
+edition = "2024"
+description = "Rust library for creating EPUB 2.1 files"
+authors = ["Javier Orfo <javierorfo@protonmail.com>"]
+license = "MIT"
+repository = "https://github.com/javiorfo/epub2"
+homepage = "https://github.com/javiorfo/epub2#readme"
+keywords = ["epub", "epub2", "epub-generator", "epub-creator"]
+
+[lib]
+name = "epub2"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "2.0.12"
