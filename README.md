@@ -1,2 +1,2 @@
 # liber
-*Rust sync/async library for creating 2.1 EPUB files*
+*Rust sync/async library for creating 2.0.1 EPUB files*
