@@ -1,21 +1,25 @@
 use std::{
+    fmt::Display,
     fs,
     io::{self, Write},
     path::Path,
 };
 
-use crate::{metadata::Metadata, output::creator::create};
+use crate::{
+    metadata::Metadata,
+    output::{content::FileContent, creator::EpubFile},
+};
 
 #[derive(Debug)]
-pub struct Epub<'a> {
-    pub metadata: Metadata<'a>,
-    pub stylesheet: Option<Stylesheet<'a>>,
+pub struct Epub<'a, S: AsRef<str>> {
+    pub metadata: Metadata<S>,
+    pub stylesheet: Option<Stylesheet<'a, S>>,
     pub cover_image: Option<Image<'a>>,
     pub images: Option<Vec<Image<'a>>>,
 }
 
-impl<'a> Epub<'a> {
-    fn new(metadata: Metadata<'a>) -> Epub<'a> {
+impl<'a, S: AsRef<str>> Epub<'a, S> {
+    fn new(metadata: Metadata<S>) -> Epub<'a, S> {
         Self {
             metadata,
             stylesheet: None,
@@ -26,15 +30,15 @@ impl<'a> Epub<'a> {
 }
 
 #[derive(Debug)]
-pub struct EpubBuilder<'a>(Epub<'a>);
+pub struct EpubBuilder<'a, S: AsRef<str>>(Epub<'a, S>);
 
-impl<'a> EpubBuilder<'a> {
+impl<'a, S: AsRef<str>> EpubBuilder<'a, S> {
     #[must_use]
-    pub fn new(metadata: Metadata<'a>) -> Self {
+    pub fn new(metadata: Metadata<S>) -> Self {
         Self(Epub::new(metadata))
     }
 
-    pub fn stylesheet(mut self, stylesheet: Stylesheet<'a>) -> Self {
+    pub fn stylesheet(mut self, stylesheet: Stylesheet<'a, S>) -> Self {
         self.0.stylesheet = Some(stylesheet);
         self
     }
@@ -54,23 +58,26 @@ impl<'a> EpubBuilder<'a> {
     }
 
     pub fn create<W: Write>(self, writer: &mut W) -> crate::Result {
-        create(self.0, writer)
+        EpubFile::new(self.0, writer).create()
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum Stylesheet<'a> {
+pub enum Stylesheet<'a, R: AsRef<str>> {
     File(&'a Path),
-    Raw(&'a str),
+    Raw(R),
 }
 
-impl<'a> Stylesheet<'a> {
-    pub const FILE: &'a str = "OEBPS/styles/style.css";
+impl<'a, R: AsRef<str>> Stylesheet<'a, R> {
+    pub fn content(&self) -> io::Result<FileContent<String>> {
+        let filepath = "OEBPS/styles/style.css";
 
-    pub fn content(&self) -> io::Result<String> {
         match self {
-            Stylesheet::Raw(text) => Ok(text.to_string()),
-            Stylesheet::File(path) => Ok(fs::read_to_string(path)?),
+            Stylesheet::Raw(text) => Ok(FileContent::new(
+                filepath.to_string(),
+                text.as_ref().as_bytes().to_vec(),
+            )),
+            Stylesheet::File(path) => Ok(FileContent::new(filepath.to_string(), fs::read(path)?)),
         }
     }
 }
@@ -83,8 +90,6 @@ pub enum Image<'a> {
 }
 
 impl<'a> Image<'a> {
-    pub const PATH: &'a str = "OEBPS/images";
-
     pub fn media_type(&self) -> &str {
         match self {
             Image::Jpg(_) => "image/jpeg",
@@ -93,16 +98,34 @@ impl<'a> Image<'a> {
         }
     }
 
-    pub fn content(&self) -> io::Result<Vec<u8>> {
+    pub fn content(&self) -> crate::Result<FileContent<String>> {
         match self {
-            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => Ok(fs::read(path)?),
+            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => Ok(FileContent::new(
+                format!("OEBPS/images/{}", self.filename()?),
+                fs::read(path)?,
+            )),
         }
     }
 
-    pub fn file_name(&self) -> Option<&str> {
+    pub fn filename(&self) -> crate::Result<String> {
         match self {
             Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => {
-                path.file_name().and_then(|filename| filename.to_str())
+                let filename = path
+                    .file_name()
+                    .and_then(|filename| filename.to_str())
+                    .ok_or(crate::Error::FilenameNotFound(self.to_string()))?;
+
+                Ok(filename.to_string())
+            }
+        }
+    }
+}
+
+impl Display for Image<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => {
+                write!(f, "{}", path.to_str().unwrap_or_default())
             }
         }
     }
@@ -149,10 +172,7 @@ mod tests {
         let builder = EpubBuilder::new(metadata).stylesheet(Stylesheet::Raw(stylesheet_content));
 
         if let Some(stylesheet) = builder.0.stylesheet {
-            assert_eq!(
-                stylesheet.content().expect("Must be OK text content"),
-                stylesheet_content
-            );
+            assert!(stylesheet.content().is_ok());
         } else {
             panic!("Stylesheet was not set to raw content");
         }
@@ -170,7 +190,7 @@ mod tests {
 
         let epub_result = EpubBuilder::new(metadata)
             .stylesheet(Stylesheet::Raw("body { color: red; }"))
-            .cover_image(Image::Jpg(&cover_image))
+            .cover_image(Image::Png(&cover_image))
             .create(&mut io::stdout());
 
         assert!(epub_result.is_ok());

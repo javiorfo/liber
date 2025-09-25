@@ -1,20 +1,22 @@
+use std::fmt::Display;
+
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct Metadata<'a> {
-    title: &'a str,
-    language: Language,
-    identifier: Identifier,
-    creator: Option<&'a str>,
-    contributor: Option<&'a str>,
-    publisher: Option<&'a str>,
-    date: Option<&'a str>,
-    subject: Option<&'a str>,
-    description: Option<&'a str>,
+pub struct Metadata<S: AsRef<str>> {
+    pub title: S,
+    pub language: Language,
+    pub identifier: Identifier,
+    pub creator: Option<S>,
+    pub contributor: Option<S>,
+    pub publisher: Option<S>,
+    pub date: Option<S>,
+    pub subject: Option<S>,
+    pub description: Option<S>,
 }
 
-impl<'a> Metadata<'a> {
-    fn new(title: &'a str, language: Language, identifier: Identifier) -> Self {
+impl<S: AsRef<str>> Metadata<S> {
+    fn new(title: S, language: Language, identifier: Identifier) -> Self {
         Self {
             title,
             language,
@@ -30,11 +32,11 @@ impl<'a> Metadata<'a> {
 }
 
 #[derive(Debug)]
-pub struct MetadataBuilder<'a>(Metadata<'a>);
+pub struct MetadataBuilder<S: AsRef<str>>(Metadata<S>);
 
-impl<'a> MetadataBuilder<'a> {
+impl<S: AsRef<str>> MetadataBuilder<S> {
     #[must_use]
-    pub fn title(title: &'a str) -> Self {
+    pub fn title(title: S) -> Self {
         Self(Metadata::new(
             title,
             Language::default(),
@@ -52,37 +54,37 @@ impl<'a> MetadataBuilder<'a> {
         self
     }
 
-    pub fn creator(mut self, creator: &'a str) -> Self {
+    pub fn creator(mut self, creator: S) -> Self {
         self.0.creator = Some(creator);
         self
     }
 
-    pub fn contributor(mut self, contributor: &'a str) -> Self {
+    pub fn contributor(mut self, contributor: S) -> Self {
         self.0.contributor = Some(contributor);
         self
     }
 
-    pub fn publisher(mut self, publisher: &'a str) -> Self {
+    pub fn publisher(mut self, publisher: S) -> Self {
         self.0.publisher = Some(publisher);
         self
     }
 
-    pub fn date(mut self, date: &'a str) -> Self {
+    pub fn date(mut self, date: S) -> Self {
         self.0.date = Some(date);
         self
     }
 
-    pub fn subject(mut self, subject: &'a str) -> Self {
+    pub fn subject(mut self, subject: S) -> Self {
         self.0.subject = Some(subject);
         self
     }
 
-    pub fn description(mut self, description: &'a str) -> Self {
+    pub fn description(mut self, description: S) -> Self {
         self.0.description = Some(description);
         self
     }
 
-    pub fn build(self) -> Metadata<'a> {
+    pub fn build(self) -> Metadata<S> {
         self.0
     }
 }
@@ -114,9 +116,9 @@ pub enum Language {
     Turkish,
 }
 
-impl From<Language> for &str {
-    fn from(value: Language) -> Self {
-        match value {
+impl AsRef<str> for Language {
+    fn as_ref(&self) -> &str {
+        match self {
             Language::Arabic => "ar",
             Language::Chinese => "zh",
             Language::Croatian => "hr",
@@ -149,9 +151,26 @@ pub enum Identifier {
     ISBN(String),
 }
 
+impl AsRef<str> for Identifier {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::UUID(value) | Self::ISBN(value) => value.as_str(),
+        }
+    }
+}
+
 impl Default for Identifier {
     fn default() -> Self {
         Identifier::UUID(format!("urn:uuid:{}", Uuid::new_v4()))
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UUID(_) => write!(f, "UUID"),
+            Self::ISBN(_) => write!(f, "ISBN"),
+        }
     }
 }
 
