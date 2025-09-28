@@ -1,13 +1,13 @@
 use crate::epub::Epub;
 
 #[derive(Debug)]
-pub struct FileContent<P> {
-    pub filepath: P,
+pub struct FileContent<F> {
+    pub filepath: F,
     pub bytes: Vec<u8>,
 }
 
-impl<P: ToString> FileContent<P> {
-    pub fn new(filepath: P, bytes: Vec<u8>) -> FileContent<P> {
+impl<F: ToString> FileContent<F> {
+    pub fn new(filepath: F, bytes: Vec<u8>) -> FileContent<F> {
         Self { filepath, bytes }
     }
 }
@@ -92,10 +92,10 @@ pub fn content_opf<'a, S: AsRef<str>>(epub: &Epub<'a, S>) -> crate::Result<FileC
         ));
     }
 
-    if let Some(ref date) = metadata.date {
+    if metadata.date.is_some() {
         content.push(format!(
             r#"    <dc:date opf:event="publication">{}</dc:date>"#,
-            date.as_ref()
+            metadata.format_date()
         ));
     }
 
@@ -122,15 +122,14 @@ pub fn content_opf<'a, S: AsRef<str>>(epub: &Epub<'a, S>) -> crate::Result<FileC
 
     if epub.stylesheet.is_some() {
         content.push(
-            r#"    <item id="style.css" href="styles/style.css" media-type="text/css"/>"#
-                .to_string(),
+            r#"    <item id="style.css" href="style.css" media-type="text/css"/>"#.to_string(),
         );
     }
 
     if let Some(ref cover_image) = epub.cover_image {
         let filename = cover_image.filename()?;
         content.push(format!(
-            r#"    <item id="{}" href="images/{}" media-type="{}"/>"#,
+            r#"    <item id="{}" href="{}" media-type="{}"/>"#,
             filename,
             filename,
             cover_image.media_type()

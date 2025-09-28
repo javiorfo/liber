@@ -14,8 +14,8 @@ use crate::{
 pub struct Epub<'a, S: AsRef<str>> {
     pub metadata: Metadata<S>,
     pub stylesheet: Option<Stylesheet<'a, S>>,
-    pub cover_image: Option<Image<'a>>,
-    pub images: Option<Vec<Image<'a>>>,
+    pub cover_image: Option<Resource<'a>>,
+    pub resources: Option<Vec<Resource<'a>>>,
 }
 
 impl<'a, S: AsRef<str>> Epub<'a, S> {
@@ -24,7 +24,7 @@ impl<'a, S: AsRef<str>> Epub<'a, S> {
             metadata,
             stylesheet: None,
             cover_image: None,
-            images: None,
+            resources: None,
         }
     }
 }
@@ -43,16 +43,16 @@ impl<'a, S: AsRef<str>> EpubBuilder<'a, S> {
         self
     }
 
-    pub fn cover_image(mut self, cover_image: Image<'a>) -> Self {
-        self.0.cover_image = Some(cover_image);
+    pub fn cover_image(mut self, path: &'a Path, image_type: ImageType) -> Self {
+        self.0.cover_image = Some(Resource::Image(path, image_type));
         self
     }
 
-    pub fn add_image(mut self, image: Image<'a>) -> Self {
-        if let Some(ref mut images) = self.0.images {
-            images.push(image);
+    pub fn add_resource(mut self, resource: Resource<'a>) -> Self {
+        if let Some(ref mut resources) = self.0.resources {
+            resources.push(resource);
         } else {
-            self.0.images = Some(vec![image]);
+            self.0.resources = Some(vec![resource]);
         }
         self
     }
@@ -70,7 +70,7 @@ pub enum Stylesheet<'a, R: AsRef<str>> {
 
 impl<'a, R: AsRef<str>> Stylesheet<'a, R> {
     pub fn content(&self) -> io::Result<FileContent<String>> {
-        let filepath = "OEBPS/styles/style.css";
+        let filepath = "OEBPS/style.css";
 
         match self {
             Stylesheet::Raw(text) => Ok(FileContent::new(
@@ -83,33 +83,53 @@ impl<'a, R: AsRef<str>> Stylesheet<'a, R> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Image<'a> {
-    Jpg(&'a Path),
-    Png(&'a Path),
-    Gif(&'a Path),
+pub enum ImageType {
+    Jpg,
+    Png,
+    Gif,
+    Svg,
 }
 
-impl<'a> Image<'a> {
+impl From<&ImageType> for &str {
+    fn from(value: &ImageType) -> Self {
+        match value {
+            ImageType::Jpg => "image/jpeg",
+            ImageType::Png => "image/png",
+            ImageType::Gif => "image/gif",
+            ImageType::Svg => "image/svg+xml",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Resource<'a> {
+    Image(&'a Path, ImageType),
+    Font(&'a Path),
+    Audio(&'a Path),
+    Video(&'a Path),
+}
+
+impl<'a> Resource<'a> {
     pub fn media_type(&self) -> &str {
         match self {
-            Image::Jpg(_) => "image/jpeg",
-            Image::Png(_) => "image/png",
-            Image::Gif(_) => "image/gif",
+            Resource::Image(_, img_type) => img_type.into(),
+            Resource::Font(_) => "application/vnd.ms-opentype",
+            Resource::Audio(_) => "audio/mpeg",
+            Resource::Video(_) => "video/mp4",
         }
     }
 
     pub fn content(&self) -> crate::Result<FileContent<String>> {
         match self {
-            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => Ok(FileContent::new(
-                format!("OEBPS/images/{}", self.filename()?),
-                fs::read(path)?,
-            )),
+            Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => Ok(
+                FileContent::new(format!("OEBPS/{}", self.filename()?), fs::read(path)?),
+            ),
         }
     }
 
     pub fn filename(&self) -> crate::Result<String> {
         match self {
-            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => {
+            Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => {
                 let filename = path
                     .file_name()
                     .and_then(|filename| filename.to_str())
@@ -121,10 +141,10 @@ impl<'a> Image<'a> {
     }
 }
 
-impl Display for Image<'_> {
+impl Display for Resource<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Jpg(path) | Self::Png(path) | Self::Gif(path) => {
+            Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => {
                 write!(f, "{}", path.to_str().unwrap_or_default())
             }
         }
@@ -190,7 +210,7 @@ mod tests {
 
         let epub_result = EpubBuilder::new(metadata)
             .stylesheet(Stylesheet::Raw("body { color: red; }"))
-            .cover_image(Image::Png(&cover_image))
+            .cover_image(&cover_image, ImageType::Png)
             .create(&mut io::stdout());
 
         assert!(epub_result.is_ok());

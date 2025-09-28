@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -10,7 +11,7 @@ pub struct Metadata<S: AsRef<str>> {
     pub creator: Option<S>,
     pub contributor: Option<S>,
     pub publisher: Option<S>,
-    pub date: Option<S>,
+    pub date: Option<DateTime<Utc>>,
     pub subject: Option<S>,
     pub description: Option<S>,
 }
@@ -24,10 +25,14 @@ impl<S: AsRef<str>> Metadata<S> {
             creator: None,
             contributor: None,
             publisher: None,
-            date: None,
+            date: Some(Utc::now()),
             subject: None,
             description: None,
         }
+    }
+
+    pub fn format_date(&self) -> String {
+        self.date.unwrap().format("%Y-%m-%d").to_string()
     }
 }
 
@@ -69,7 +74,7 @@ impl<S: AsRef<str>> MetadataBuilder<S> {
         self
     }
 
-    pub fn date(mut self, date: S) -> Self {
+    pub fn date(mut self, date: DateTime<Utc>) -> Self {
         self.0.date = Some(date);
         self
     }
@@ -92,55 +97,103 @@ impl<S: AsRef<str>> MetadataBuilder<S> {
 #[derive(Debug, Clone, Default)]
 pub enum Language {
     Arabic,
+    Bulgarian,
     Chinese,
     Croatian,
     Czech,
+    Danish,
     Dutch,
     #[default]
     English,
+    Estonian,
+    Finnish,
     French,
     Greek,
     German,
+    Hebrew,
     Hungarian,
+    Icelandic,
+    Indonesian,
+    Irish,
     Italian,
     Japanese,
     Korean,
+    Latvian,
+    Lithuanian,
+    Macedonian,
+    Malay,
+    Maltese,
+    Norwegian,
+    Persian,
     Polish,
     Portuguese,
     Romanian,
     Russian,
+    Serbian,
     Slovak,
     Slovenian,
     Spanish,
+    Swahili,
     Swedish,
+    Tagalog,
+    Thai,
     Turkish,
+    Ukrainian,
+    Urdu,
+    Vietnamese,
+    Welsh,
+    Yiddish,
 }
 
 impl AsRef<str> for Language {
     fn as_ref(&self) -> &str {
         match self {
             Language::Arabic => "ar",
+            Language::Bulgarian => "bg",
             Language::Chinese => "zh",
             Language::Croatian => "hr",
             Language::Czech => "cs",
+            Language::Danish => "da",
             Language::Dutch => "nl",
             Language::English => "en",
+            Language::Estonian => "et",
+            Language::Finnish => "fi",
             Language::French => "fr",
-            Language::Greek => "gl",
+            Language::Greek => "el",
             Language::German => "de",
+            Language::Hebrew => "he",
             Language::Hungarian => "hu",
+            Language::Icelandic => "is",
+            Language::Indonesian => "id",
+            Language::Irish => "ga",
             Language::Italian => "it",
             Language::Japanese => "ja",
             Language::Korean => "ko",
+            Language::Latvian => "lv",
+            Language::Lithuanian => "lt",
+            Language::Macedonian => "mk",
+            Language::Malay => "ms",
+            Language::Maltese => "mt",
+            Language::Norwegian => "no",
+            Language::Persian => "fa",
             Language::Polish => "pl",
             Language::Portuguese => "pt",
             Language::Romanian => "ro",
             Language::Russian => "ru",
+            Language::Serbian => "sr",
             Language::Slovak => "sk",
             Language::Slovenian => "sl",
             Language::Spanish => "es",
+            Language::Swahili => "sw",
             Language::Swedish => "sv",
+            Language::Tagalog => "tl",
+            Language::Thai => "th",
             Language::Turkish => "tr",
+            Language::Ukrainian => "uk",
+            Language::Urdu => "ur",
+            Language::Vietnamese => "vi",
+            Language::Welsh => "cy",
+            Language::Yiddish => "yi",
         }
     }
 }
@@ -200,7 +253,7 @@ mod tests {
 
         assert_eq!(metadata.creator, None);
         assert_eq!(metadata.publisher, None);
-        assert_eq!(metadata.date, None);
+        assert!(metadata.date.is_some());
         assert_eq!(metadata.subject, None);
         assert_eq!(metadata.description, None);
     }
@@ -213,7 +266,6 @@ mod tests {
 
         let creator = "Douglas Adams";
         let publisher = "Pan Books";
-        let date = "1979-10-12";
         let subject = "Science Fiction";
         let description = "A comic science fiction series created by Douglas Adams.";
 
@@ -222,7 +274,6 @@ mod tests {
             .identifier(identifier)
             .creator(creator)
             .publisher(publisher)
-            .date(date)
             .subject(subject)
             .description(description)
             .build();
@@ -230,7 +281,7 @@ mod tests {
         assert_eq!(metadata.creator, Some(creator));
         assert_eq!(metadata.contributor, None);
         assert_eq!(metadata.publisher, Some(publisher));
-        assert_eq!(metadata.date, Some(date));
+        assert!(metadata.date.is_some());
         assert_eq!(metadata.subject, Some(subject));
         assert_eq!(metadata.description, Some(description));
     }

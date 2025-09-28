@@ -11,9 +11,10 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct EpubFile<'a, W, S: AsRef<str>>
+pub struct EpubFile<'a, W, S>
 where
     W: Write,
+    S: AsRef<str>,
 {
     epub: Epub<'a, S>,
     options: FileOptions<'a, ()>,
@@ -21,7 +22,11 @@ where
     zip_writer: ZipWriter<Cursor<Vec<u8>>>,
 }
 
-impl<'a, W: Write, S: AsRef<str>> EpubFile<'a, W, S> {
+impl<'a, W, S> EpubFile<'a, W, S>
+where
+    W: Write,
+    S: AsRef<str>,
+{
     pub fn new(epub: Epub<'a, S>, writer: W) -> EpubFile<'a, W, S> {
         Self {
             epub,
@@ -46,10 +51,10 @@ impl<'a, W: Write, S: AsRef<str>> EpubFile<'a, W, S> {
             self.add_file(cover_image.content()?)?;
         }
 
-        if let Some(ref images) = self.epub.images {
-            let contents = images
+        if let Some(ref resources) = self.epub.resources {
+            let contents = resources
                 .iter()
-                .map(|img| img.content())
+                .map(|resource| resource.content())
                 .collect::<crate::Result<Vec<FileContent<String>>>>()?;
 
             self.add_files(contents)?;
@@ -63,17 +68,16 @@ impl<'a, W: Write, S: AsRef<str>> EpubFile<'a, W, S> {
         Ok(())
     }
 
-    fn add_file<P: ToString>(&mut self, file_content: FileContent<P>) -> crate::Result {
+    fn add_file<F: ToString>(&mut self, file_content: FileContent<F>) -> crate::Result {
         self.zip_writer
             .start_file(file_content.filepath, self.options)?;
         self.zip_writer.write_all(&file_content.bytes)?;
         Ok(())
     }
 
-    fn add_files<P: ToString>(&mut self, file_contents: Vec<FileContent<P>>) -> crate::Result {
+    fn add_files<F: ToString>(&mut self, file_contents: Vec<FileContent<F>>) -> crate::Result {
         for fc in file_contents {
-            self.zip_writer.start_file(fc.filepath, self.options)?;
-            self.zip_writer.write_all(&fc.bytes)?;
+            self.add_file(fc)?;
         }
         Ok(())
     }

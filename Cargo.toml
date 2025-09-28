@@ -14,6 +14,7 @@ name = "liber"
 path = "src/lib.rs"
 
 [dependencies]
+chrono = "0.4.42"
 thiserror = "2.0.12"
 uuid = { version = "1.18.1", features = ["v4"] }
 zip = "5.1.1"
