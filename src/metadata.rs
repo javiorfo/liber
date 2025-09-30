@@ -4,20 +4,20 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct Metadata<S: AsRef<str>> {
-    pub title: S,
+pub struct Metadata<'a> {
+    pub title: &'a str,
     pub language: Language,
     pub identifier: Identifier,
-    pub creator: Option<S>,
-    pub contributor: Option<S>,
-    pub publisher: Option<S>,
+    pub creator: Option<&'a str>,
+    pub contributor: Option<&'a str>,
+    pub publisher: Option<&'a str>,
     pub date: Option<DateTime<Utc>>,
-    pub subject: Option<S>,
-    pub description: Option<S>,
+    pub subject: Option<&'a str>,
+    pub description: Option<&'a str>,
 }
 
-impl<S: AsRef<str>> Metadata<S> {
-    fn new(title: S, language: Language, identifier: Identifier) -> Self {
+impl<'a> Metadata<'a> {
+    fn new(title: &'a str, language: Language, identifier: Identifier) -> Self {
         Self {
             title,
             language,
@@ -37,11 +37,11 @@ impl<S: AsRef<str>> Metadata<S> {
 }
 
 #[derive(Debug)]
-pub struct MetadataBuilder<S: AsRef<str>>(Metadata<S>);
+pub struct MetadataBuilder<'a>(Metadata<'a>);
 
-impl<S: AsRef<str>> MetadataBuilder<S> {
+impl<'a> MetadataBuilder<'a> {
     #[must_use]
-    pub fn title(title: S) -> Self {
+    pub fn title(title: &'a str) -> Self {
         Self(Metadata::new(
             title,
             Language::default(),
@@ -59,17 +59,17 @@ impl<S: AsRef<str>> MetadataBuilder<S> {
         self
     }
 
-    pub fn creator(mut self, creator: S) -> Self {
+    pub fn creator(mut self, creator: &'a str) -> Self {
         self.0.creator = Some(creator);
         self
     }
 
-    pub fn contributor(mut self, contributor: S) -> Self {
+    pub fn contributor(mut self, contributor: &'a str) -> Self {
         self.0.contributor = Some(contributor);
         self
     }
 
-    pub fn publisher(mut self, publisher: S) -> Self {
+    pub fn publisher(mut self, publisher: &'a str) -> Self {
         self.0.publisher = Some(publisher);
         self
     }
@@ -79,17 +79,17 @@ impl<S: AsRef<str>> MetadataBuilder<S> {
         self
     }
 
-    pub fn subject(mut self, subject: S) -> Self {
+    pub fn subject(mut self, subject: &'a str) -> Self {
         self.0.subject = Some(subject);
         self
     }
 
-    pub fn description(mut self, description: S) -> Self {
+    pub fn description(mut self, description: &'a str) -> Self {
         self.0.description = Some(description);
         self
     }
 
-    pub fn build(self) -> Metadata<S> {
+    pub fn build(self) -> Metadata<'a> {
         self.0
     }
 }

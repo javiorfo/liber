@@ -3,6 +3,7 @@ mod metadata;
 mod output;
 
 pub use epub::EpubBuilder;
+pub use epub::SectionBuilder;
 pub use metadata::{Identifier, Language, MetadataBuilder};
 
 /// Error type for all fallible operations in this crate.
@@ -13,6 +14,9 @@ pub enum Error {
 
     #[error(transparent)]
     Zip(#[from] zip::result::ZipError),
+
+    #[error(transparent)]
+    Utf8(#[from] std::str::Utf8Error),
 
     #[error("Filename not found: {0}")]
     FilenameNotFound(String),
