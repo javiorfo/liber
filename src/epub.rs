@@ -25,7 +25,11 @@ impl<'a> Epub<'a> {
         }
     }
 
-    pub fn level(&self) -> usize {
+    pub fn level_as_toc_xml(&self) -> String {
+        format!(r#"<meta name="dtb:depth" content="{}"/>"#, self.level())
+    }
+
+    fn level(&self) -> usize {
         if let Some(ref sections) = self.sections {
             let level_subsections = sections
                 .iter()
@@ -228,7 +232,7 @@ impl ReferenceType<'_> {
 }
 
 #[derive(Debug)]
-pub struct Toc<'a>(&'a str);
+pub struct Toc<'a>(pub &'a str);
 
 #[derive(Debug)]
 pub struct Section<'a> {
@@ -443,6 +447,7 @@ mod tests {
                         ReferenceType::Text("Chapter 1"),
                     )
                     .add_toc(Toc("Toc 1"))
+                    .add_toc(Toc("Toc 2"))
                     .build(),
                 )
                 .build(),

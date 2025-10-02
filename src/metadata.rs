@@ -35,11 +35,11 @@ impl<'a> Metadata<'a> {
         self.date.unwrap().format("%Y-%m-%d").to_string()
     }
 
-    pub fn title_into_xml_tag(&self) -> String {
+    pub fn title_as_metadata_xml(&self) -> String {
         format!("<dc:title>{}</dc:title>", self.title)
     }
 
-    pub fn creator_into_xml_tag(&self) -> Option<String> {
+    pub fn creator_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:creator opf:role="aut">{}</dc:creator>"#,
             self.creator?
@@ -157,7 +157,7 @@ pub enum Language {
 }
 
 impl Language {
-    pub fn into_xml_tag(&self) -> String {
+    pub fn as_metadata_xml(&self) -> String {
         format!("<dc:language>{}</dc:language>", self.as_ref())
     }
 }
@@ -222,12 +222,16 @@ pub enum Identifier {
 }
 
 impl Identifier {
-    pub fn into_xml_tag(&self) -> String {
+    pub fn as_metadata_xml(&self) -> String {
         format!(
             r#"<dc:identifier id="BookId" opf:scheme="{}">{}</dc:identifier>"#,
             self,
             self.as_ref()
         )
+    }
+
+    pub fn as_toc_xml(&self) -> String {
+        format!(r#"<meta name="dtb:uid" content="{}"/>"#, self.as_ref())
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::Toc;
 use crate::epub::{Epub, Section};
 
 use quick_xml::events::Event;
@@ -60,12 +61,12 @@ pub fn content_opf<'a>(
     let mut content = vec![
         r#"<?xml version="1.0" encoding="utf-8"?><package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">"#.to_string(),
-        metadata.title_into_xml_tag(),
-        metadata.language.into_xml_tag(),
-        metadata.identifier.into_xml_tag()
+        metadata.title_as_metadata_xml(),
+        metadata.language.as_metadata_xml(),
+        metadata.identifier.as_metadata_xml()
     ];
 
-    if let Some(creator) = metadata.creator_into_xml_tag() {
+    if let Some(creator) = metadata.creator_as_metadata_xml() {
         content.push(creator);
     }
 
@@ -181,30 +182,20 @@ pub fn content_opf<'a>(
 }
 
 pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8>>> {
+    let metadata = &epub.metadata;
+
     let mut content = vec![
         r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
         <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head>"#.to_string(),
+        metadata.identifier.as_toc_xml(),
+        epub.level_as_toc_xml(),
     ];
-
-    let metadata = &epub.metadata;
-
-    content.push(format!(
-        r#"<meta name="dtb:uid" content="{}"/>"#,
-        metadata.identifier.as_ref()
-    ));
-
-    content.push(format!(
-        r#"<meta name="dtb:depth" content="{}"/>"#,
-        epub.level()
-    ));
 
     content.push(format!(r#"<meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head>
                         <docTitle><text>{}</text></docTitle><navMap>"#, metadata.title));
 
-    let mut play_order = 0;
-
     if let Some(ref sections) = epub.sections {
-        content.push(process_sections(&mut play_order, sections));
+        content.push(process_sections(&mut 0, sections).unwrap());
     }
 
     content.push(r#"</navMap></ncx>"#.to_string());
@@ -215,30 +206,55 @@ pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8
     ))
 }
 
-fn process_sections(play_order: &mut usize, sections: &[Section<'_>]) -> String {
+fn process_sections(play_order: &mut usize, sections: &[Section<'_>]) -> Option<String> {
     let mut content = String::new();
     for section in sections {
         *play_order += 1;
         let current_play_order = *play_order;
 
-        let subs = if let Some(ref subsections) = section.subsections {
-            process_sections(play_order, subsections)
-        } else {
-            String::new()
-        };
-
         let nav_point = format!(
-            r#"<navPoint id="navPoint-{}" playOrder="{}"><navLabel><text>{}</text></navLabel><content src="{}"/>{}</navPoint>"#,
-            current_play_order,
-            current_play_order,
-            section.title(),
-            Section::filename(current_play_order),
-            subs,
+            r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}"><navLabel><text>{text}</text></navLabel><content src="{file}"/>{subs}{tocs}</navPoint>"#,
+            text = section.title(),
+            file = Section::filename(current_play_order),
+            subs = section
+                .subsections
+                .as_ref()
+                .and_then(|s| process_sections(play_order, s))
+                .unwrap_or_default(),
+            tocs = section
+                .tocs
+                .as_ref()
+                .and_then(|tocs| process_tocs(play_order, &mut 0, tocs))
+                .unwrap_or_default()
         );
         content.push_str(&nav_point);
     }
 
-    content
+    Some(content)
+}
+
+fn process_tocs(
+    play_order: &mut usize,
+    toc_element: &mut usize,
+    tocs: &[Toc<'_>],
+) -> Option<String> {
+    let mut content = String::new();
+    let current_xhtml = *play_order;
+
+    for toc in tocs {
+        *toc_element += 1;
+        let current_toc = *toc_element;
+        *play_order += 1;
+
+        let nav_point = format!(
+            r#"<navPoint id="navPoint-{current_xhtml}-{current_toc}" playOrder="{play_order}"><navLabel><text>{text}</text></navLabel><content src="{xhtml}#{current_toc}"/></navPoint>"#,
+            text = toc.0,
+            xhtml = Section::filename(current_xhtml),
+        );
+        content.push_str(&nav_point);
+    }
+
+    Some(content)
 }
 
 fn pretty_print_xml(xml_data: &str) -> crate::Result<String> {
