@@ -2,8 +2,7 @@ mod epub;
 mod metadata;
 mod output;
 
-pub use epub::EpubBuilder;
-pub use epub::SectionBuilder;
+pub use epub::{EpubBuilder, SectionBuilder, Toc};
 pub use metadata::{Identifier, Language, MetadataBuilder};
 
 /// Error type for all fallible operations in this crate.
@@ -18,8 +17,17 @@ pub enum Error {
     #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
 
+    #[error(transparent)]
+    StringUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error(transparent)]
+    Xml(#[from] quick_xml::Error),
+
     #[error("Filename not found: {0}")]
     FilenameNotFound(String),
+
+    #[error("Error at position {0}: {1:?}")]
+    XmlParser(u64, quick_xml::Error),
 }
 
 /// A convenient alias for `Result` with the crate's [`Error`] type.

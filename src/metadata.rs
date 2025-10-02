@@ -34,6 +34,17 @@ impl<'a> Metadata<'a> {
     pub fn format_date(&self) -> String {
         self.date.unwrap().format("%Y-%m-%d").to_string()
     }
+
+    pub fn title_into_xml_tag(&self) -> String {
+        format!("<dc:title>{}</dc:title>", self.title)
+    }
+
+    pub fn creator_into_xml_tag(&self) -> Option<String> {
+        Some(format!(
+            r#"<dc:creator opf:role="aut">{}</dc:creator>"#,
+            self.creator?
+        ))
+    }
 }
 
 #[derive(Debug)]
@@ -145,6 +156,12 @@ pub enum Language {
     Yiddish,
 }
 
+impl Language {
+    pub fn into_xml_tag(&self) -> String {
+        format!("<dc:language>{}</dc:language>", self.as_ref())
+    }
+}
+
 impl AsRef<str> for Language {
     fn as_ref(&self) -> &str {
         match self {
@@ -202,6 +219,16 @@ impl AsRef<str> for Language {
 pub enum Identifier {
     UUID(String),
     ISBN(String),
+}
+
+impl Identifier {
+    pub fn into_xml_tag(&self) -> String {
+        format!(
+            r#"<dc:identifier id="BookId" opf:scheme="{}">{}</dc:identifier>"#,
+            self,
+            self.as_ref()
+        )
+    }
 }
 
 impl AsRef<str> for Identifier {

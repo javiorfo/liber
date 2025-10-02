@@ -54,7 +54,7 @@ impl<'a, W: Write> EpubFile<'a, W> {
             self.add_files(contents)?;
         }
 
-        let mut file_number: usize = 1;
+        let mut file_number: usize = 0;
         if let Some(ref sections) = self.epub.sections {
             let mut contents: Vec<FileContent<String, Vec<u8>>> = Vec::new();
             for section in sections {

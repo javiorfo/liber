@@ -27,11 +27,19 @@ impl<'a> Epub<'a> {
 
     pub fn level(&self) -> usize {
         if let Some(ref sections) = self.sections {
-            sections
+            let level_subsections = sections
                 .iter()
-                .map(|section| section.level() + 1)
+                .map(|section| section.level_subsections() + 1)
                 .max()
-                .unwrap_or(1)
+                .unwrap_or(1);
+
+            let level_tocs = sections
+                .iter()
+                .map(|section| section.level_tocs() + 1)
+                .max()
+                .unwrap_or(1);
+
+            level_subsections.max(level_tocs)
         } else {
             0
         }
@@ -66,12 +74,22 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
+    pub fn resources(mut self, resources: Vec<Resource<'a>>) -> Self {
+        self.0.resources = Some(resources);
+        self
+    }
+
     pub fn add_section(mut self, section: Section<'a>) -> Self {
         if let Some(ref mut sections) = self.0.sections {
             sections.push(section);
         } else {
             self.0.sections = Some(vec![section]);
         }
+        self
+    }
+
+    pub fn sections(mut self, sections: Vec<Section<'a>>) -> Self {
+        self.0.sections = Some(sections);
         self
     }
 
@@ -210,10 +228,14 @@ impl ReferenceType<'_> {
 }
 
 #[derive(Debug)]
+pub struct Toc<'a>(&'a str);
+
+#[derive(Debug)]
 pub struct Section<'a> {
     content: &'a [u8],
     pub reference_type: ReferenceType<'a>,
     pub subsections: Option<Vec<Section<'a>>>,
+    pub tocs: Option<Vec<Toc<'a>>>,
 }
 
 impl<'a> Section<'a> {
@@ -222,15 +244,20 @@ impl<'a> Section<'a> {
             content,
             reference_type,
             subsections: None,
+            tocs: None,
         }
     }
 
-    pub fn level(&self) -> usize {
+    pub fn level_subsections(&self) -> usize {
         match self.subsections {
             Some(ref subsections) if subsections.is_empty() => 0,
-            Some(ref subsections) => 1 + subsections[0].level(),
+            Some(ref subsections) => 1 + subsections[0].level_subsections(),
             None => 0,
         }
+    }
+
+    pub fn level_tocs(&self) -> usize {
+        self.tocs.as_ref().map(|toc| toc.len()).unwrap_or(0)
     }
 
     pub fn content(
@@ -238,7 +265,8 @@ impl<'a> Section<'a> {
         number: &mut usize,
         add_stylesheet: bool,
     ) -> crate::Result<Vec<FileContent<String, Vec<u8>>>> {
-        let filepath = self.filename(*number);
+        *number += 1;
+        let filepath = Self::filename(*number);
         let mut file_contents = Vec::new();
 
         let xhtml_content = self.xhtml(std::str::from_utf8(self.content)?, add_stylesheet);
@@ -250,7 +278,6 @@ impl<'a> Section<'a> {
 
         if let Some(ref subsections) = self.subsections {
             for section in subsections {
-                *number += 1;
                 let contents = section.content(number, add_stylesheet)?;
                 file_contents.extend(contents);
             }
@@ -258,7 +285,7 @@ impl<'a> Section<'a> {
         Ok(file_contents)
     }
 
-    pub fn filename(&self, number: usize) -> String {
+    pub fn filename(number: usize) -> String {
         format!("{:02}.xhtml", number)
     }
 
@@ -280,10 +307,14 @@ impl<'a> Section<'a> {
 </head>
 {}
 </html>"#,
-            self.reference_type.type_and_title().1,
+            self.title(),
             stylesheet,
             text
         )
+    }
+
+    pub fn title(&self) -> &str {
+        self.reference_type.type_and_title().1
     }
 }
 
@@ -307,6 +338,20 @@ impl<'a> SectionBuilder<'a> {
 
     pub fn subsections(mut self, sections: Vec<Section<'a>>) -> Self {
         self.0.subsections = Some(sections);
+        self
+    }
+
+    pub fn add_toc(mut self, toc: Toc<'a>) -> Self {
+        if let Some(ref mut tocs) = self.0.tocs {
+            tocs.push(toc);
+        } else {
+            self.0.tocs = Some(vec![toc]);
+        }
+        self
+    }
+
+    pub fn tocs(mut self, tocs: Vec<Toc<'a>>) -> Self {
+        self.0.tocs = Some(tocs);
         self
     }
 
@@ -364,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn test_epub_builder_with_cover_image() {
+    fn test_epub_builder_complete() {
         let metadata = MetadataBuilder::title("Title").build();
 
         let temp_dir = tempdir().unwrap();
@@ -397,7 +442,18 @@ mod tests {
                             .as_bytes(),
                         ReferenceType::Text("Chapter 1"),
                     )
+                    .add_toc(Toc("Toc 1"))
                     .build(),
+                )
+                .build(),
+            )
+            .add_section(
+                SectionBuilder::new(
+                    r#"<body>
+  <h1>Part II</h1>
+</body>"#
+                        .as_bytes(),
+                    ReferenceType::TitlePage("Part II"),
                 )
                 .build(),
             )
