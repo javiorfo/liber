@@ -1,10 +1,5 @@
-use crate::ContentReference;
-use crate::epub::{Content, Epub};
-
-use quick_xml::events::Event;
-use quick_xml::reader::Reader;
-use quick_xml::writer::Writer;
-use std::io::Cursor;
+use crate::epub::{Content, ContentReference, Epub};
+use crate::output::xml;
 
 #[derive(Debug)]
 pub struct FileContent<F, B> {
@@ -70,11 +65,8 @@ pub fn content_opf<'a>(
         content.push(creator);
     }
 
-    if let Some(ref contributor) = metadata.contributor {
-        content.push(format!(
-            r#"<dc:contributor opf:role="trl">{}</dc:contributor>"#,
-            contributor
-        ));
+    if let Some(contributor) = metadata.contributor_as_metadata_xml() {
+        content.push(contributor);
     }
 
     if let Some(ref publisher) = metadata.publisher {
@@ -177,7 +169,7 @@ pub fn content_opf<'a>(
 
     Ok(FileContent::new(
         "OEBPS/content.opf",
-        pretty_print_xml(&content.join("\n"))?.as_bytes().to_vec(),
+        xml::format(&content.join("\n"))?.as_bytes().to_vec(),
     ))
 }
 
@@ -202,7 +194,7 @@ pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8
 
     Ok(FileContent::new(
         "OEBPS/toc.ncx",
-        pretty_print_xml(&content.join("\n"))?.as_bytes().to_vec(),
+        xml::format(&content.join("\n"))?.as_bytes().to_vec(),
     ))
 }
 
@@ -276,27 +268,4 @@ fn process_content_references(
     }
 
     Some(result)
-}
-
-fn pretty_print_xml(xml_data: &str) -> crate::Result<String> {
-    let mut reader = Reader::from_str(xml_data);
-    reader.config_mut().trim_text(true);
-
-    let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 2);
-
-    let mut buf = Vec::new();
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Eof) => break,
-            Ok(event) => {
-                writer.write_event(event)?;
-            }
-            Err(e) => return Err(crate::Error::XmlParser(reader.buffer_position(), e)),
-        }
-        buf.clear();
-    }
-
-    let result = writer.into_inner().into_inner();
-
-    Ok(String::from_utf8(result)?)
 }

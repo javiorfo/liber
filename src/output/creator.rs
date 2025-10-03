@@ -7,7 +7,7 @@ use zip::{
 
 use crate::{
     epub::Epub,
-    output::content::{self, FileContent},
+    output::file_content::{self, FileContent},
 };
 
 #[derive(Debug)]
@@ -31,9 +31,9 @@ impl<'a, W: Write> EpubFile<'a, W> {
     }
 
     pub fn create(mut self) -> crate::Result {
-        self.add_file(content::container())?;
-        self.add_file(content::mimetype())?;
-        self.add_file(content::display_options())?;
+        self.add_file(file_content::container())?;
+        self.add_file(file_content::mimetype())?;
+        self.add_file(file_content::display_options())?;
 
         let mut add_stylesheet = false;
         if let Some(ref stylesheet) = self.epub.stylesheet {
@@ -65,8 +65,8 @@ impl<'a, W: Write> EpubFile<'a, W> {
             self.add_files(file_contents)?;
         }
 
-        self.add_file(content::content_opf(&self.epub, file_number)?)?;
-        self.add_file(content::toc_ncx(&self.epub)?)?;
+        self.add_file(file_content::content_opf(&self.epub, file_number)?)?;
+        self.add_file(file_content::toc_ncx(&self.epub)?)?;
 
         let buffer = self.zip_writer.finish()?;
         self.writer.write_all(&buffer.into_inner())?;

@@ -45,6 +45,13 @@ impl<'a> Metadata<'a> {
             self.creator?
         ))
     }
+
+    pub fn contributor_as_metadata_xml(&self) -> Option<String> {
+        Some(format!(
+            r#"<dc:contributor opf:role="trl">{}</dc:contributor>"#,
+            self.contributor?
+        ))
+    }
 }
 
 #[derive(Debug)]

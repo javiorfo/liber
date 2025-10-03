@@ -1,9 +1,5 @@
-mod epub;
-mod metadata;
+pub mod epub;
 mod output;
-
-pub use epub::{ContentBuilder, ContentReference, EpubBuilder};
-pub use metadata::{Identifier, Language, MetadataBuilder};
 
 /// Error type for all fallible operations in this crate.
 #[derive(thiserror::Error, Debug)]
