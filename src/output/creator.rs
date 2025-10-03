@@ -37,32 +37,32 @@ impl<'a, W: Write> EpubFile<'a, W> {
 
         let mut add_stylesheet = false;
         if let Some(ref stylesheet) = self.epub.stylesheet {
-            self.add_file(stylesheet.content())?;
+            self.add_file(stylesheet.file_content())?;
             add_stylesheet = true;
         }
 
         if let Some(ref cover_image) = self.epub.cover_image {
-            self.add_file(cover_image.content()?)?;
+            self.add_file(cover_image.file_content()?)?;
         }
 
         if let Some(ref resources) = self.epub.resources {
             let contents = resources
                 .iter()
-                .map(|resource| resource.content())
+                .map(|resource| resource.file_content())
                 .collect::<crate::Result<Vec<FileContent<String, Vec<u8>>>>>()?;
 
             self.add_files(contents)?;
         }
 
         let mut file_number: usize = 0;
-        if let Some(ref sections) = self.epub.sections {
-            let mut contents: Vec<FileContent<String, Vec<u8>>> = Vec::new();
-            for section in sections {
-                let res = section.content(&mut file_number, add_stylesheet)?;
-                contents.extend(res);
+        if let Some(ref contents) = self.epub.contents {
+            let mut file_contents: Vec<FileContent<String, Vec<u8>>> = Vec::new();
+            for content in contents {
+                let res = content.file_content(&mut file_number, add_stylesheet)?;
+                file_contents.extend(res);
             }
 
-            self.add_files(contents)?;
+            self.add_files(file_contents)?;
         }
 
         self.add_file(content::content_opf(&self.epub, file_number)?)?;

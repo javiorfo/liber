@@ -1,5 +1,5 @@
-use crate::Toc;
-use crate::epub::{Epub, Section};
+use crate::ContentReference;
+use crate::epub::{Content, Epub};
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -130,9 +130,9 @@ pub fn content_opf<'a>(
         }
     }
 
-    if epub.sections.is_some() {
+    if epub.contents.is_some() {
         for i in 1..=file_number {
-            let filename = Section::filename(i);
+            let filename = Content::filename(i);
             content.push(format!(
                 r#"<item id="{filename}" href="{filename}" media-type="application/xhtml+xml"/>"#,
             ));
@@ -141,30 +141,30 @@ pub fn content_opf<'a>(
 
     content.push(r#"</manifest><spine toc="ncx">"#.to_string());
 
-    if epub.sections.is_some() {
+    if epub.contents.is_some() {
         for i in 1..=file_number {
-            let filename = Section::filename(i);
+            let filename = Content::filename(i);
             content.push(format!(r#"<itemref idref="{filename}"/>"#));
         }
     }
 
     content.push(r#"</spine><guide>"#.to_string());
 
-    if let Some(ref sections) = epub.sections {
+    if let Some(ref contents) = epub.contents {
         let mut file_number = 1;
-        for section in sections {
-            let filename = Section::filename(file_number);
+        for con in contents {
+            let filename = Content::filename(file_number);
             file_number += 1;
-            let (ref_type, title) = section.reference_type.type_and_title();
+            let (ref_type, title) = con.reference_type.type_and_title();
             content.push(format!(
                 r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,
             ));
 
-            if let Some(ref sections) = section.subsections {
-                for section in sections {
-                    let filename = Section::filename(file_number);
+            if let Some(ref subcontents) = con.subcontents {
+                for subcon in subcontents {
+                    let filename = Content::filename(file_number);
                     file_number += 1;
-                    let (ref_type, title) = section.reference_type.type_and_title();
+                    let (ref_type, title) = subcon.reference_type.type_and_title();
                     content.push(format!(
                         r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,
                     ));
@@ -194,8 +194,8 @@ pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8
     content.push(format!(r#"<meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head>
                         <docTitle><text>{}</text></docTitle><navMap>"#, metadata.title));
 
-    if let Some(ref sections) = epub.sections {
-        content.push(process_sections(&mut 0, sections).unwrap());
+    if let Some(ref contents) = epub.contents {
+        content.push(process_contents(&mut 0, contents).unwrap());
     }
 
     content.push(r#"</navMap></ncx>"#.to_string());
@@ -206,55 +206,76 @@ pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8
     ))
 }
 
-fn process_sections(play_order: &mut usize, sections: &[Section<'_>]) -> Option<String> {
-    let mut content = String::new();
-    for section in sections {
+fn process_contents(play_order: &mut usize, contents: &[Content<'_>]) -> Option<String> {
+    let mut result = String::new();
+    for content in contents {
         *play_order += 1;
         let current_play_order = *play_order;
 
         let nav_point = format!(
-            r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}"><navLabel><text>{text}</text></navLabel><content src="{file}"/>{subs}{tocs}</navPoint>"#,
-            text = section.title(),
-            file = Section::filename(current_play_order),
-            subs = section
-                .subsections
+            r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}"><navLabel><text>{text}</text></navLabel><content src="{file}"/>{subs}{content_references}</navPoint>"#,
+            text = content.title(),
+            file = Content::filename(current_play_order),
+            subs = content
+                .subcontents
                 .as_ref()
-                .and_then(|s| process_sections(play_order, s))
+                .and_then(|s| process_contents(play_order, s))
                 .unwrap_or_default(),
-            tocs = section
-                .tocs
+            content_references = content
+                .content_references
                 .as_ref()
-                .and_then(|tocs| process_tocs(play_order, &mut 0, tocs))
+                .and_then(|content_references| process_content_references(
+                    current_play_order,
+                    play_order,
+                    "",
+                    content_references
+                ))
                 .unwrap_or_default()
         );
-        content.push_str(&nav_point);
+        result.push_str(&nav_point);
     }
 
-    Some(content)
+    Some(result)
 }
 
-fn process_tocs(
+fn process_content_references(
+    current_xhtml: usize,
     play_order: &mut usize,
-    toc_element: &mut usize,
-    tocs: &[Toc<'_>],
+    toc_index: &str,
+    content_references: &[ContentReference<'_>],
 ) -> Option<String> {
-    let mut content = String::new();
-    let current_xhtml = *play_order;
+    let mut result = String::new();
 
-    for toc in tocs {
-        *toc_element += 1;
-        let current_toc = *toc_element;
+    let (prefix, mut toc_number) = toc_index
+        .rsplit_once('-')
+        .map(|(prefix, number)| (prefix, number.parse::<usize>().unwrap_or(0)))
+        .unwrap_or(("", 0));
+
+    for content_reference in content_references {
+        toc_number += 1;
+        let current_toc = format!("{prefix}-{toc_number}");
         *play_order += 1;
+        let current_play_order = *play_order;
 
         let nav_point = format!(
-            r#"<navPoint id="navPoint-{current_xhtml}-{current_toc}" playOrder="{play_order}"><navLabel><text>{text}</text></navLabel><content src="{xhtml}#{current_toc}"/></navPoint>"#,
-            text = toc.0,
-            xhtml = Section::filename(current_xhtml),
+            r#"<navPoint id="navPoint-{current_xhtml}{current_toc}" playOrder="{current_play_order}"><navLabel><text>{text}</text></navLabel><content src="{xhtml}#{current_xhtml}{current_toc}"/>{subcontent_references}</navPoint>"#,
+            text = content_reference.title,
+            xhtml = Content::filename(current_xhtml),
+            subcontent_references = content_reference
+                .subcontent_references
+                .as_ref()
+                .and_then(|subcontent_references| process_content_references(
+                    current_xhtml,
+                    play_order,
+                    &format!("{current_toc}-"),
+                    subcontent_references
+                ))
+                .unwrap_or_default()
         );
-        content.push_str(&nav_point);
+        result.push_str(&nav_point);
     }
 
-    Some(content)
+    Some(result)
 }
 
 fn pretty_print_xml(xml_data: &str) -> crate::Result<String> {

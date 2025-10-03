@@ -11,7 +11,7 @@ pub struct Epub<'a> {
     pub stylesheet: Option<Stylesheet<'a>>,
     pub cover_image: Option<Resource<'a>>,
     pub resources: Option<Vec<Resource<'a>>>,
-    pub sections: Option<Vec<Section<'a>>>,
+    pub contents: Option<Vec<Content<'a>>>,
 }
 
 impl<'a> Epub<'a> {
@@ -21,7 +21,7 @@ impl<'a> Epub<'a> {
             stylesheet: None,
             cover_image: None,
             resources: None,
-            sections: None,
+            contents: None,
         }
     }
 
@@ -30,20 +30,20 @@ impl<'a> Epub<'a> {
     }
 
     fn level(&self) -> usize {
-        if let Some(ref sections) = self.sections {
-            let level_subsections = sections
+        if let Some(ref contents) = self.contents {
+            let level_subcontents = contents
                 .iter()
-                .map(|section| section.level_subsections() + 1)
+                .map(|content| content.level() + 1)
                 .max()
                 .unwrap_or(1);
 
-            let level_tocs = sections
+            let level_content_references = contents
                 .iter()
-                .map(|section| section.level_tocs() + 1)
+                .map(|content| content.level_reference_content() + 1)
                 .max()
                 .unwrap_or(1);
 
-            level_subsections.max(level_tocs)
+            level_subcontents.max(level_content_references)
         } else {
             0
         }
@@ -83,17 +83,17 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
-    pub fn add_section(mut self, section: Section<'a>) -> Self {
-        if let Some(ref mut sections) = self.0.sections {
-            sections.push(section);
+    pub fn add_content(mut self, content: Content<'a>) -> Self {
+        if let Some(ref mut contents) = self.0.contents {
+            contents.push(content);
         } else {
-            self.0.sections = Some(vec![section]);
+            self.0.contents = Some(vec![content]);
         }
         self
     }
 
-    pub fn sections(mut self, sections: Vec<Section<'a>>) -> Self {
-        self.0.sections = Some(sections);
+    pub fn contents(mut self, contents: Vec<Content<'a>>) -> Self {
+        self.0.contents = Some(contents);
         self
     }
 
@@ -104,16 +104,16 @@ impl<'a> EpubBuilder<'a> {
 
 #[derive(Debug)]
 pub struct Stylesheet<'a> {
-    pub content: &'a [u8],
+    pub body: &'a [u8],
 }
 
 impl<'a> Stylesheet<'a> {
-    pub fn new(content: &'a [u8]) -> Stylesheet<'a> {
-        Self { content }
+    pub fn new(body: &'a [u8]) -> Stylesheet<'a> {
+        Self { body }
     }
 
-    pub fn content(&self) -> FileContent<&'a str, &'a [u8]> {
-        FileContent::new("OEBPS/style.css", self.content)
+    pub fn file_content(&self) -> FileContent<&'a str, &'a [u8]> {
+        FileContent::new("OEBPS/style.css", self.body)
     }
 }
 
@@ -154,7 +154,7 @@ impl<'a> Resource<'a> {
         }
     }
 
-    pub fn content(&self) -> crate::Result<FileContent<String, Vec<u8>>> {
+    pub fn file_content(&self) -> crate::Result<FileContent<String, Vec<u8>>> {
         match self {
             Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => Ok(
                 FileContent::new(format!("OEBPS/{}", self.filename()?), fs::read(path)?),
@@ -232,39 +232,81 @@ impl ReferenceType<'_> {
 }
 
 #[derive(Debug)]
-pub struct Toc<'a>(pub &'a str);
-
-#[derive(Debug)]
-pub struct Section<'a> {
-    content: &'a [u8],
-    pub reference_type: ReferenceType<'a>,
-    pub subsections: Option<Vec<Section<'a>>>,
-    pub tocs: Option<Vec<Toc<'a>>>,
+pub struct ContentReference<'a> {
+    pub title: &'a str,
+    pub subcontent_references: Option<Vec<ContentReference<'a>>>,
 }
 
-impl<'a> Section<'a> {
-    fn new(content: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
+impl<'a> ContentReference<'a> {
+    pub fn new(title: &'a str) -> Self {
         Self {
-            content,
-            reference_type,
-            subsections: None,
-            tocs: None,
+            title,
+            subcontent_references: None,
         }
     }
 
-    pub fn level_subsections(&self) -> usize {
-        match self.subsections {
-            Some(ref subsections) if subsections.is_empty() => 0,
-            Some(ref subsections) => 1 + subsections[0].level_subsections(),
+    #[allow(clippy::should_implement_trait)]
+    pub fn add(mut self, content_reference: ContentReference<'a>) -> Self {
+        if let Some(ref mut subcontent_references) = self.subcontent_references {
+            subcontent_references.push(content_reference);
+        } else {
+            self.subcontent_references = Some(vec![content_reference]);
+        }
+        self
+    }
+
+    pub fn level(&self) -> usize {
+        match self.subcontent_references {
+            Some(ref subcontent_references) if subcontent_references.is_empty() => 0,
+            Some(ref subcontent_references) => 1 + subcontent_references[0].level(),
+            None => 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Content<'a> {
+    body: &'a [u8],
+    pub reference_type: ReferenceType<'a>,
+    pub subcontents: Option<Vec<Content<'a>>>,
+    pub content_references: Option<Vec<ContentReference<'a>>>,
+}
+
+impl<'a> Content<'a> {
+    fn new(body: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
+        Self {
+            body,
+            reference_type,
+            subcontents: None,
+            content_references: None,
+        }
+    }
+
+    pub fn level(&self) -> usize {
+        match self.subcontents {
+            Some(ref subcontents) if subcontents.is_empty() => 0,
+            Some(ref subcontents) => 1 + subcontents[0].level(),
             None => 0,
         }
     }
 
-    pub fn level_tocs(&self) -> usize {
-        self.tocs.as_ref().map(|toc| toc.len()).unwrap_or(0)
+    pub fn level_reference_content(&self) -> usize {
+        let content_references_level = match self.content_references {
+            Some(ref content_references) if content_references.is_empty() => 0,
+            Some(ref content_references) => 1 + content_references[0].level(),
+            None => 0,
+        };
+
+        let subcontents_cont_ref_level = match self.subcontents {
+            Some(ref subcontents) if subcontents.is_empty() => 0,
+            Some(ref subcontents) => 1 + subcontents[0].level_reference_content(),
+            None => 0,
+        };
+
+        content_references_level.max(subcontents_cont_ref_level)
     }
 
-    pub fn content(
+    pub fn file_content(
         &self,
         number: &mut usize,
         add_stylesheet: bool,
@@ -273,16 +315,16 @@ impl<'a> Section<'a> {
         let filepath = Self::filename(*number);
         let mut file_contents = Vec::new();
 
-        let xhtml_content = self.xhtml(std::str::from_utf8(self.content)?, add_stylesheet);
+        let xhtml_content = self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet);
 
         file_contents.push(FileContent::new(
             filepath.to_string(),
             xhtml_content.as_bytes().to_vec(),
         ));
 
-        if let Some(ref subsections) = self.subsections {
-            for section in subsections {
-                let contents = section.content(number, add_stylesheet)?;
+        if let Some(ref subcontents) = self.subcontents {
+            for content in subcontents {
+                let contents = content.file_content(number, add_stylesheet)?;
                 file_contents.extend(contents);
             }
         }
@@ -323,43 +365,43 @@ impl<'a> Section<'a> {
 }
 
 #[derive(Debug)]
-pub struct SectionBuilder<'a>(Section<'a>);
+pub struct ContentBuilder<'a>(Content<'a>);
 
-impl<'a> SectionBuilder<'a> {
+impl<'a> ContentBuilder<'a> {
     #[must_use]
-    pub fn new(content: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
-        Self(Section::new(content, reference_type))
+    pub fn new(body: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
+        Self(Content::new(body, reference_type))
     }
 
-    pub fn add_subsection(mut self, section: Section<'a>) -> Self {
-        if let Some(ref mut subsections) = self.0.subsections {
-            subsections.push(section);
+    pub fn add_subcontent(mut self, content: Content<'a>) -> Self {
+        if let Some(ref mut subcontents) = self.0.subcontents {
+            subcontents.push(content);
         } else {
-            self.0.subsections = Some(vec![section]);
+            self.0.subcontents = Some(vec![content]);
         }
         self
     }
 
-    pub fn subsections(mut self, sections: Vec<Section<'a>>) -> Self {
-        self.0.subsections = Some(sections);
+    pub fn subcontents(mut self, contents: Vec<Content<'a>>) -> Self {
+        self.0.subcontents = Some(contents);
         self
     }
 
-    pub fn add_toc(mut self, toc: Toc<'a>) -> Self {
-        if let Some(ref mut tocs) = self.0.tocs {
-            tocs.push(toc);
+    pub fn add_content_reference(mut self, content_reference: ContentReference<'a>) -> Self {
+        if let Some(ref mut content_references) = self.0.content_references {
+            content_references.push(content_reference);
         } else {
-            self.0.tocs = Some(vec![toc]);
+            self.0.content_references = Some(vec![content_reference]);
         }
         self
     }
 
-    pub fn tocs(mut self, tocs: Vec<Toc<'a>>) -> Self {
-        self.0.tocs = Some(tocs);
+    pub fn content_references(mut self, content_references: Vec<ContentReference<'a>>) -> Self {
+        self.0.content_references = Some(content_references);
         self
     }
 
-    pub fn build(self) -> Section<'a> {
+    pub fn build(self) -> Content<'a> {
         self.0
     }
 }
@@ -406,7 +448,7 @@ mod tests {
             EpubBuilder::new(metadata).stylesheet(Stylesheet::new(stylesheet_content.as_bytes()));
 
         if let Some(stylesheet) = builder.0.stylesheet {
-            assert_eq!(stylesheet.content().filepath, "OEBPS/style.css");
+            assert_eq!(stylesheet.file_content().filepath, "OEBPS/style.css");
         } else {
             panic!("Stylesheet was not set to raw content");
         }
@@ -430,34 +472,28 @@ mod tests {
             .stylesheet(Stylesheet::new(b"body { color: red; }"))
             .cover_image(&cover_image, ImageType::Png)
             .add_resource(Resource::Font(&font))
-            .add_section(
-                SectionBuilder::new(
-                    r#"<body>
-  <h1>Part I</h1>
-</body>"#
-                        .as_bytes(),
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Part I</h1></body>".as_bytes(),
                     ReferenceType::TitlePage("Part I"),
                 )
-                .add_subsection(
-                    SectionBuilder::new(
-                        r#"<body>
-  <h1>Chapter 1</h1>
-</body>"#
-                            .as_bytes(),
+                .add_subcontent(
+                    ContentBuilder::new(
+                        "<body><h1>Chapter 1</h1></body>".as_bytes(),
                         ReferenceType::Text("Chapter 1"),
                     )
-                    .add_toc(Toc("Toc 1"))
-                    .add_toc(Toc("Toc 2"))
+                    .add_content_reference(ContentReference::new("Content 1.1"))
+                    .add_content_reference(
+                        ContentReference::new("Content 1.2")
+                            .add(ContentReference::new("Content 1.2.1")),
+                    )
                     .build(),
                 )
                 .build(),
             )
-            .add_section(
-                SectionBuilder::new(
-                    r#"<body>
-  <h1>Part II</h1>
-</body>"#
-                        .as_bytes(),
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Part II</h1></body>".as_bytes(),
                     ReferenceType::TitlePage("Part II"),
                 )
                 .build(),
