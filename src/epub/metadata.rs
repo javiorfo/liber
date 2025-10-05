@@ -31,25 +31,43 @@ impl<'a> Metadata<'a> {
         }
     }
 
-    pub fn format_date(&self) -> String {
-        self.date.unwrap().format("%Y-%m-%d").to_string()
-    }
-
-    pub fn title_as_metadata_xml(&self) -> String {
+    pub(crate) fn title_as_metadata_xml(&self) -> String {
         format!("<dc:title>{}</dc:title>", self.title)
     }
 
-    pub fn creator_as_metadata_xml(&self) -> Option<String> {
+    pub(crate) fn creator_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:creator opf:role="aut">{}</dc:creator>"#,
             self.creator?
         ))
     }
 
-    pub fn contributor_as_metadata_xml(&self) -> Option<String> {
+    pub(crate) fn contributor_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:contributor opf:role="trl">{}</dc:contributor>"#,
             self.contributor?
+        ))
+    }
+
+    pub(crate) fn publisher_as_metadata_xml(&self) -> Option<String> {
+        Some(format!("<dc:publisher>{}</dc:publisher>", self.publisher?))
+    }
+
+    pub(crate) fn date_as_metadata_xml(&self) -> Option<String> {
+        Some(format!(
+            r#"<dc:date opf:event="publication">{}</dc:date>"#,
+            self.date?.format("%Y-%m-%d")
+        ))
+    }
+
+    pub(crate) fn subject_as_metadata_xml(&self) -> Option<String> {
+        Some(format!("<dc:subject>{}</dc:subject>", self.subject?))
+    }
+
+    pub(crate) fn description_as_metadata_xml(&self) -> Option<String> {
+        Some(format!(
+            "<dc:description>{}</dc:description>",
+            self.description?
         ))
     }
 }
@@ -229,7 +247,7 @@ pub enum Identifier {
 }
 
 impl Identifier {
-    pub fn as_metadata_xml(&self) -> String {
+    pub(crate) fn as_metadata_xml(&self) -> String {
         format!(
             r#"<dc:identifier id="BookId" opf:scheme="{}">{}</dc:identifier>"#,
             self,
@@ -237,7 +255,7 @@ impl Identifier {
         )
     }
 
-    pub fn as_toc_xml(&self) -> String {
+    pub(crate) fn as_toc_xml(&self) -> String {
         format!(r#"<meta name="dtb:uid" content="{}"/>"#, self.as_ref())
     }
 }

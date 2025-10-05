@@ -29,6 +29,13 @@ impl<'a> Epub<'a> {
         format!(r#"<meta name="dtb:depth" content="{}"/>"#, self.level())
     }
 
+    pub fn cover_image_as_metadata_xml(&self) -> Option<String> {
+        Some(format!(
+            r#"<meta name="cover" content="{}"/>"#,
+            self.cover_image.as_ref()?.filename().ok()?
+        ))
+    }
+
     fn level(&self) -> usize {
         if let Some(ref contents) = self.contents {
             let level_subcontents = contents
@@ -192,6 +199,7 @@ mod tests {
                     "<body><h1>Part II</h1></body>".as_bytes(),
                     ReferenceType::TitlePage("Part II"),
                 )
+                .add_content_reference(ContentReference::new("Content 2.1"))
                 .build(),
             )
             .create(&mut std::io::stdout());
