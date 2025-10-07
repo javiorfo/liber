@@ -1,14 +1,14 @@
 use std::{io::Write, path::Path};
 
 use crate::{
-    epub::{Content, ImageType, Resource, Stylesheet, metadata::Metadata},
-    output::creator::EpubFile,
+    epub::{Content, ImageType, Resource, metadata::Metadata},
+    output::{creator::EpubFile, zip::ZipCompression},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Epub<'a> {
     pub metadata: Metadata<'a>,
-    pub stylesheet: Option<Stylesheet<'a>>,
+    pub stylesheet: Option<&'a [u8]>,
     pub cover_image: Option<Resource<'a>>,
     pub resources: Option<Vec<Resource<'a>>>,
     pub contents: Option<Vec<Content<'a>>>,
@@ -66,7 +66,7 @@ impl<'a> EpubBuilder<'a> {
         Self(Epub::new(metadata))
     }
 
-    pub fn stylesheet(mut self, stylesheet: Stylesheet<'a>) -> Self {
+    pub fn stylesheet(mut self, stylesheet: &'a [u8]) -> Self {
         self.0.stylesheet = Some(stylesheet);
         self
     }
@@ -105,7 +105,35 @@ impl<'a> EpubBuilder<'a> {
     }
 
     pub fn create<W: Write>(self, writer: &mut W) -> crate::Result {
-        EpubFile::new(self.0, writer).create()
+        self.create_with_compression(writer, ZipCompression::Stored)
+    }
+
+    pub fn create_with_compression<W: Write>(
+        self,
+        writer: &mut W,
+        compression: ZipCompression,
+    ) -> crate::Result {
+        EpubFile::new(self.0, writer, compression).create()
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn create_async<W: tokio::io::AsyncWrite + Unpin>(
+        self,
+        writer: &mut W,
+    ) -> crate::Result {
+        self.create_async_with_compression(writer, ZipCompression::Stored)
+            .await
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn create_async_with_compression<W: tokio::io::AsyncWrite + Unpin>(
+        self,
+        writer: &mut W,
+        compression: ZipCompression,
+    ) -> crate::Result {
+        use crate::output::creator_async::EpubFile;
+
+        EpubFile::new(self.0, writer, compression).create().await
     }
 }
 
@@ -137,7 +165,7 @@ mod tests {
 
         let stylesheet = std::fs::read(stylesheet_path).unwrap();
 
-        let builder = EpubBuilder::new(metadata).stylesheet(Stylesheet::new(&stylesheet));
+        let builder = EpubBuilder::new(metadata).stylesheet(&stylesheet);
 
         assert!(builder.0.stylesheet.is_some());
     }
@@ -147,11 +175,10 @@ mod tests {
         let metadata = MetadataBuilder::title("Title").build();
 
         let stylesheet_content = "body { color: red; }";
-        let builder =
-            EpubBuilder::new(metadata).stylesheet(Stylesheet::new(stylesheet_content.as_bytes()));
+        let builder = EpubBuilder::new(metadata).stylesheet(stylesheet_content.as_bytes());
 
         if let Some(stylesheet) = builder.0.stylesheet {
-            assert_eq!(stylesheet.file_content().filepath, "OEBPS/style.css");
+            assert_eq!(stylesheet, "body { color: red; }".as_bytes());
         } else {
             panic!("Stylesheet was not set to raw content");
         }
@@ -172,7 +199,7 @@ mod tests {
         file.write_all(b"dummy font data").unwrap();
 
         let epub_result = EpubBuilder::new(metadata)
-            .stylesheet(Stylesheet::new(b"body { color: red; }"))
+            .stylesheet(b"body { color: red; }")
             .cover_image(&cover_image, ImageType::Png)
             .add_resource(Resource::Font(&font))
             .add_content(
@@ -188,7 +215,7 @@ mod tests {
                     .add_content_reference(ContentReference::new("Content 1.1"))
                     .add_content_reference(
                         ContentReference::new("Content 1.2")
-                            .add(ContentReference::new("Content 1.2.1")),
+                            .add_subcontent_reference(ContentReference::new("Content 1.2.1")),
                     )
                     .build(),
                 )

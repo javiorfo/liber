@@ -1,5 +1,4 @@
 use crate::epub::{Content, ContentReference, Epub};
-use crate::output::xml;
 
 #[derive(Debug)]
 pub struct FileContent<F, B> {
@@ -11,13 +10,16 @@ impl<F: ToString, B: AsRef<[u8]>> FileContent<F, B> {
     pub fn new(filepath: F, bytes: B) -> FileContent<F, B> {
         Self { filepath, bytes }
     }
+
+    pub fn format(&mut self, bytes: B) {
+        self.bytes = bytes;
+    }
 }
 
 pub fn container<'a>() -> FileContent<&'a str, &'a [u8]> {
     FileContent::new(
         "META-INF/container.xml",
-        r#"
-<?xml version="1.0" encoding="UTF-8"?>
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
     <rootfiles>
         <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
@@ -35,8 +37,7 @@ pub fn mimetype<'a>() -> FileContent<&'a str, &'a [u8]> {
 pub fn display_options<'a>() -> FileContent<&'a str, &'a [u8]> {
     FileContent::new(
         "META-INF/com.apple.ibooks.display-options.xml",
-        r#"
-<?xml version="1.0" encoding="utf-8"?>
+        r#"<?xml version="1.0" encoding="utf-8"?>
 <display_options>
 	<platform name="*">
 		<option name="specified-fonts">true</option>
@@ -67,15 +68,15 @@ impl ContentBuilder {
         }
     }
 
-    pub fn build(self) -> crate::Result<Vec<u8>> {
-        Ok(xml::format(&self.0)?.as_bytes().to_vec())
+    pub fn build(self) -> String {
+        self.0
     }
 }
 
-pub fn content_opf<'a>(
-    epub: &Epub<'a>,
+pub fn content_opf(
+    epub: &Epub<'_>,
     file_number: usize,
-) -> crate::Result<FileContent<&'a str, Vec<u8>>> {
+) -> crate::Result<FileContent<String, String>> {
     let metadata = &epub.metadata;
 
     let mut content_builder = ContentBuilder(String::from(
@@ -94,7 +95,7 @@ pub fn content_opf<'a>(
     content_builder.add_optional(metadata.description_as_metadata_xml());
     content_builder.add_optional(epub.cover_image_as_metadata_xml());
     content_builder.add(
-        r#"</metadata><manifest><item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml" />"#,
+        r#"</metadata><manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />"#,
     );
     content_builder.add_if_some(
         r#"<item id="style.css" href="style.css" media-type="text/css"/>"#,
@@ -165,12 +166,12 @@ pub fn content_opf<'a>(
     content_builder.add(r#"</guide></package>"#);
 
     Ok(FileContent::new(
-        "OEBPS/content.opf",
-        content_builder.build()?,
+        "OEBPS/content.opf".to_string(),
+        content_builder.build(),
     ))
 }
 
-pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8>>> {
+pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     let metadata = &epub.metadata;
 
     let mut content_builder = ContentBuilder(String::from(
@@ -192,7 +193,10 @@ pub fn toc_ncx<'a>(epub: &Epub<'a>) -> crate::Result<FileContent<&'a str, Vec<u8
 
     content_builder.add(r#"</navMap></ncx>"#);
 
-    Ok(FileContent::new("OEBPS/toc.ncx", content_builder.build()?))
+    Ok(FileContent::new(
+        "OEBPS/toc.ncx".to_string(),
+        content_builder.build(),
+    ))
 }
 
 fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Option<String> {
@@ -257,7 +261,7 @@ fn content_references_to_nav_point(
         let nav_point = format!(
             r#"<navPoint id="navPoint-{current_xhtml}{current_toc}" playOrder="{current_play_order}">
             <navLabel><text>{text}</text></navLabel>
-            <content src="{xhtml}#{current_link}"/>{subcontent_references}</navPoint>"#,
+            <content src="{xhtml}#id{current_link:02}"/>{subcontent_references}</navPoint>"#,
             text = content_reference.title,
             xhtml = Content::filename(current_xhtml),
             subcontent_references = content_reference

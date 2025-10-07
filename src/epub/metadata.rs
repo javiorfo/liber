@@ -3,9 +3,9 @@ use std::fmt::Display;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Metadata<'a> {
-    pub title: &'a str,
+    pub title: String,
     pub language: Language,
     pub identifier: Identifier,
     pub creator: Option<&'a str>,
@@ -17,9 +17,9 @@ pub struct Metadata<'a> {
 }
 
 impl<'a> Metadata<'a> {
-    fn new(title: &'a str, language: Language, identifier: Identifier) -> Self {
+    fn new<S: ToString>(title: S, language: Language, identifier: Identifier) -> Self {
         Self {
-            title,
+            title: title.to_string(),
             language,
             identifier,
             creator: None,

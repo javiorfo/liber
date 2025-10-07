@@ -7,7 +7,11 @@ use zip::{
 
 use crate::{
     epub::Epub,
-    output::file_content::{self, FileContent},
+    output::{
+        file_content::{self, FileContent},
+        xml,
+        zip::ZipCompression,
+    },
 };
 
 #[derive(Debug)]
@@ -19,26 +23,29 @@ pub struct EpubFile<'a, W: Write> {
 }
 
 impl<'a, W: Write> EpubFile<'a, W> {
-    pub fn new(epub: Epub<'a>, writer: W) -> EpubFile<'a, W> {
+    pub fn new(epub: Epub<'a>, writer: W, compression: ZipCompression) -> EpubFile<'a, W> {
+        let compression = match compression {
+            ZipCompression::Stored => CompressionMethod::Stored,
+            ZipCompression::Deflated => CompressionMethod::Deflated,
+        };
+
         Self {
             epub,
             writer,
             options: SimpleFileOptions::default()
-                .compression_method(CompressionMethod::Stored)
+                .compression_method(compression)
                 .unix_permissions(0o755),
             zip_writer: ZipWriter::new(Cursor::new(Vec::new())),
         }
     }
 
     pub fn create(mut self) -> crate::Result {
-        self.add_file(file_content::container())?;
         self.add_file(file_content::mimetype())?;
+        self.add_file(file_content::container())?;
         self.add_file(file_content::display_options())?;
 
-        let mut add_stylesheet = false;
-        if let Some(ref stylesheet) = self.epub.stylesheet {
-            self.add_file(stylesheet.file_content())?;
-            add_stylesheet = true;
+        if let Some(stylesheet) = self.epub.stylesheet {
+            self.add_file(FileContent::new("OEBPS/style.css", stylesheet))?;
         }
 
         if let Some(ref cover_image) = self.epub.cover_image {
@@ -56,17 +63,22 @@ impl<'a, W: Write> EpubFile<'a, W> {
 
         let mut file_number: usize = 0;
         if let Some(ref contents) = self.epub.contents {
-            let mut file_contents: Vec<FileContent<String, Vec<u8>>> = Vec::new();
+            let mut file_contents: Vec<FileContent<String, String>> = Vec::new();
             for content in contents {
-                let res = content.file_content(&mut file_number, add_stylesheet)?;
+                let res = content.file_content(&mut file_number, self.epub.stylesheet.is_some())?;
                 file_contents.extend(res);
             }
 
             self.add_files(file_contents)?;
         }
 
-        self.add_file(file_content::content_opf(&self.epub, file_number)?)?;
-        self.add_file(file_content::toc_ncx(&self.epub)?)?;
+        let mut content_opf = file_content::content_opf(&self.epub, file_number)?;
+        content_opf.format(xml::format(&content_opf.bytes)?);
+        self.add_file(content_opf)?;
+
+        let mut toc_ncx = file_content::toc_ncx(&self.epub)?;
+        toc_ncx.format(xml::format(&toc_ncx.bytes)?);
+        self.add_file(toc_ncx)?;
 
         let buffer = self.zip_writer.finish()?;
         self.writer.write_all(&buffer.into_inner())?;

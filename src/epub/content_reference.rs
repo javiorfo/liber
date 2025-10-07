@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContentReference<'a> {
     pub title: &'a str,
     pub subcontent_references: Option<Vec<ContentReference<'a>>>,
@@ -12,8 +12,7 @@ impl<'a> ContentReference<'a> {
         }
     }
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn add(mut self, content_reference: ContentReference<'a>) -> Self {
+    pub fn add_subcontent_reference(mut self, content_reference: ContentReference<'a>) -> Self {
         if let Some(ref mut subcontent_references) = self.subcontent_references {
             subcontent_references.push(content_reference);
         } else {

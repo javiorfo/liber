@@ -47,6 +47,18 @@ impl<'a> Resource<'a> {
         }
     }
 
+    #[cfg(feature = "async")]
+    pub(crate) async fn async_file_content(&self) -> crate::Result<FileContent<String, Vec<u8>>> {
+        match self {
+            Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => {
+                Ok(FileContent::new(
+                    format!("OEBPS/{}", self.filename()?),
+                    tokio::fs::read(path).await?,
+                ))
+            }
+        }
+    }
+
     pub(crate) fn filename(&self) -> crate::Result<String> {
         match self {
             Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => {

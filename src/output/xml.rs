@@ -24,3 +24,8 @@ pub fn format(xml_data: &str) -> crate::Result<String> {
 
     Ok(String::from_utf8(result)?)
 }
+
+#[cfg(feature = "async")]
+pub async fn async_format(xml_data: String) -> crate::Result<String> {
+    tokio::task::spawn_blocking(move || format(&xml_data)).await?
+}

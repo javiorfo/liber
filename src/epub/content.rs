@@ -48,7 +48,7 @@ impl ReferenceType<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Content<'a> {
     body: &'a [u8],
     pub(crate) reference_type: ReferenceType<'a>,
@@ -94,17 +94,39 @@ impl<'a> Content<'a> {
         &self,
         number: &mut usize,
         add_stylesheet: bool,
-    ) -> crate::Result<Vec<FileContent<String, Vec<u8>>>> {
+    ) -> crate::Result<Vec<FileContent<String, String>>> {
         *number += 1;
-        let filepath = Self::filename(*number);
+        let filepath = format!("OEBPS/{}", Self::filename(*number));
         let mut file_contents = Vec::new();
 
-        let xhtml_content = self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet)?;
+        let xhtml_content =
+            xml::format(&self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet))?;
 
-        file_contents.push(FileContent::new(
-            filepath.to_string(),
-            xhtml_content.as_bytes().to_vec(),
-        ));
+        file_contents.push(FileContent::new(filepath.to_string(), xhtml_content));
+
+        if let Some(ref subcontents) = self.subcontents {
+            for content in subcontents {
+                let contents = content.file_content(number, add_stylesheet)?;
+                file_contents.extend(contents);
+            }
+        }
+        Ok(file_contents)
+    }
+
+    #[cfg(feature = "async")]
+    pub(crate) async fn async_file_content(
+        &self,
+        number: &mut usize,
+        add_stylesheet: bool,
+    ) -> crate::Result<Vec<FileContent<String, String>>> {
+        *number += 1;
+        let filepath = format!("OEBPS/{}", Self::filename(*number));
+        let mut file_contents = Vec::new();
+
+        let xhtml_content =
+            xml::async_format(self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet)).await?;
+
+        file_contents.push(FileContent::new(filepath.to_string(), xhtml_content));
 
         if let Some(ref subcontents) = self.subcontents {
             for content in subcontents {
@@ -116,27 +138,27 @@ impl<'a> Content<'a> {
     }
 
     pub(crate) fn filename(number: usize) -> String {
-        format!("{:02}.xhtml", number)
+        format!("c{number:02}.xhtml")
     }
 
     pub(crate) fn title(&self) -> &str {
         self.reference_type.type_and_title().1
     }
 
-    fn xhtml(&self, text: &str, add_stylesheet: bool) -> crate::Result<String> {
+    fn xhtml(&self, text: &str, add_stylesheet: bool) -> String {
         let stylesheet = if add_stylesheet {
             r#"<link href="style.css" rel="stylesheet" type="text/css"/>"#
         } else {
             ""
         };
 
-        xml::format(&format!(
+        format!(
             r#"<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
             <html xmlns="http://www.w3.org/1999/xhtml"><head><title>{}</title>{}</head>{}</html>"#,
             self.title(),
             stylesheet,
             text
-        ))
+        )
     }
 }
 

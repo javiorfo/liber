@@ -1,6 +1,8 @@
 pub mod epub;
 mod output;
 
+pub use output::zip::ZipCompression;
+
 /// Error type for all fallible operations in this crate.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -9,6 +11,14 @@ pub enum Error {
 
     #[error(transparent)]
     Zip(#[from] zip::result::ZipError),
+
+    #[cfg(feature = "async")]
+    #[error(transparent)]
+    AsyncZip(#[from] async_zip::error::ZipError),
+
+    #[cfg(feature = "async")]
+    #[error(transparent)]
+    TokioJoinError(#[from] tokio::task::JoinError),
 
     #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
