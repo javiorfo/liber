@@ -350,7 +350,9 @@ mod tests {
             Identifier::UUID(uuid_string) => {
                 assert!(uuid_string.starts_with("urn:uuid:"));
 
-                let uuid_str = uuid_string.strip_prefix("urn:uuid:").unwrap();
+                let uuid_str = uuid_string
+                    .strip_prefix("urn:uuid:")
+                    .expect("prefix urn:uuid: not found");
 
                 let parsed_uuid = Uuid::parse_str(uuid_str);
 

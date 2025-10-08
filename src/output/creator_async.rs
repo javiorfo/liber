@@ -1,35 +1,38 @@
+use std::io::Cursor;
+
 use async_zip::{Compression, ZipEntryBuilder, tokio::write::ZipFileWriter};
 use futures::future;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
+    ZipCompression,
     epub::Epub,
     output::{
         file_content::{self, FileContent},
         xml,
-        zip::ZipCompression,
     },
 };
 
-pub struct EpubFile<'a, W>
-where
-    W: tokio::io::AsyncWrite + Unpin,
-{
+pub struct EpubFile<'a, W> {
     epub: Epub<'a>,
-    zip_writer: ZipFileWriter<W>,
+    writer: W,
+    zip_writer: ZipFileWriter<Cursor<Vec<u8>>>,
     compression: async_zip::Compression,
 }
 
-impl<'a, W: tokio::io::AsyncWrite + Unpin> EpubFile<'a, W> {
+impl<'a, W> EpubFile<'a, W>
+where
+    W: AsyncWrite + Unpin,
+{
     pub fn new(epub: Epub<'a>, writer: W, compression: ZipCompression) -> EpubFile<'a, W> {
-        let compression = match compression {
-            ZipCompression::Stored => Compression::Stored,
-            ZipCompression::Deflated => Compression::Deflate,
-        };
-
         Self {
             epub,
-            zip_writer: ZipFileWriter::with_tokio(writer),
-            compression,
+            writer,
+            zip_writer: ZipFileWriter::with_tokio(Cursor::new(Vec::new())),
+            compression: match compression {
+                ZipCompression::Stored => Compression::Stored,
+                ZipCompression::Deflated => Compression::Deflate,
+            },
         }
     }
 
@@ -79,7 +82,10 @@ impl<'a, W: tokio::io::AsyncWrite + Unpin> EpubFile<'a, W> {
         toc_ncx.format(xml::async_format(toc_ncx.bytes.clone()).await?);
         self.add_file(toc_ncx).await?;
 
-        self.zip_writer.close().await?;
+        let compat_cursor = self.zip_writer.close().await?;
+        self.writer
+            .write_all(&compat_cursor.into_inner().into_inner())
+            .await?;
 
         Ok(())
     }
@@ -89,7 +95,9 @@ impl<'a, W: tokio::io::AsyncWrite + Unpin> EpubFile<'a, W> {
         file_content: FileContent<F, B>,
     ) -> crate::Result {
         let builder =
-            ZipEntryBuilder::new(file_content.filepath.to_string().into(), self.compression);
+            ZipEntryBuilder::new(file_content.filepath.to_string().into(), self.compression)
+                .unix_permissions(0o755)
+                .build();
 
         self.zip_writer
             .write_entry_whole(builder, file_content.bytes.as_ref())

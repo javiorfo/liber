@@ -1,7 +1,7 @@
 pub mod epub;
 mod output;
 
-pub use output::zip::ZipCompression;
+pub use output::creator::ZipCompression;
 
 /// Error type for all fallible operations in this crate.
 #[derive(thiserror::Error, Debug)]

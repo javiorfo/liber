@@ -10,19 +10,27 @@ use crate::{
     output::{
         file_content::{self, FileContent},
         xml,
-        zip::ZipCompression,
     },
 };
 
+#[derive(Debug, Clone)]
+pub enum ZipCompression {
+    Deflated,
+    Stored,
+}
+
 #[derive(Debug)]
-pub struct EpubFile<'a, W: Write> {
+pub struct EpubFile<'a, W> {
     epub: Epub<'a>,
     options: FileOptions<'a, ()>,
     writer: W,
     zip_writer: ZipWriter<Cursor<Vec<u8>>>,
 }
 
-impl<'a, W: Write> EpubFile<'a, W> {
+impl<'a, W> EpubFile<'a, W>
+where
+    W: Write,
+{
     pub fn new(epub: Epub<'a>, writer: W, compression: ZipCompression) -> EpubFile<'a, W> {
         let compression = match compression {
             ZipCompression::Stored => CompressionMethod::Stored,

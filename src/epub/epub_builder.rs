@@ -1,8 +1,9 @@
 use std::{io::Write, path::Path};
 
+use crate::ZipCompression;
 use crate::{
     epub::{Content, ImageType, Resource, metadata::Metadata},
-    output::{creator::EpubFile, zip::ZipCompression},
+    output::creator::EpubFile,
 };
 
 #[derive(Debug, Clone)]
@@ -117,16 +118,16 @@ impl<'a> EpubBuilder<'a> {
     }
 
     #[cfg(feature = "async")]
-    pub async fn create_async<W: tokio::io::AsyncWrite + Unpin>(
+    pub async fn async_create<W: tokio::io::AsyncWrite + Unpin>(
         self,
         writer: &mut W,
     ) -> crate::Result {
-        self.create_async_with_compression(writer, ZipCompression::Stored)
+        self.async_create_with_compression(writer, ZipCompression::Stored)
             .await
     }
 
     #[cfg(feature = "async")]
-    pub async fn create_async_with_compression<W: tokio::io::AsyncWrite + Unpin>(
+    pub async fn async_create_with_compression<W: tokio::io::AsyncWrite + Unpin>(
         self,
         writer: &mut W,
         compression: ZipCompression,
@@ -158,12 +159,13 @@ mod tests {
     fn test_epub_builder_stylesheet_file() {
         let metadata = MetadataBuilder::title("Title").build();
 
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempdir().expect("Error creating tempdir");
         let stylesheet_path = temp_dir.path().join("style.css");
-        let mut file = File::create(&stylesheet_path).unwrap();
-        file.write_all(b"dummy font data").unwrap();
+        let mut file = File::create(&stylesheet_path).expect("Error creating mock css");
+        file.write_all(b"dummy font data")
+            .expect("Error writing to mock css");
 
-        let stylesheet = std::fs::read(stylesheet_path).unwrap();
+        let stylesheet = std::fs::read(stylesheet_path).expect("Error reading mock css");
 
         let builder = EpubBuilder::new(metadata).stylesheet(&stylesheet);
 
@@ -188,15 +190,17 @@ mod tests {
     fn test_epub_builder_complete() {
         let metadata = MetadataBuilder::title("Title").build();
 
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempdir().expect("Error creating tempdir");
         let cover_image = temp_dir.path().join("cover.png");
         let font = temp_dir.path().join("SomeFont.ttf");
 
-        let mut file = File::create(&cover_image).unwrap();
-        file.write_all(b"dummy image data").unwrap();
+        let mut file = File::create(&cover_image).expect("Error creating mock cover image");
+        file.write_all(b"dummy image data")
+            .expect("Error writing to mock cover image");
 
-        let mut file = File::create(&font).unwrap();
-        file.write_all(b"dummy font data").unwrap();
+        let mut file = File::create(&font).expect("Error creating mock mock font");
+        file.write_all(b"dummy font data")
+            .expect("Error writing to mock font");
 
         let epub_result = EpubBuilder::new(metadata)
             .stylesheet(b"body { color: red; }")
