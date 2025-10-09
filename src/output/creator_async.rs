@@ -22,7 +22,7 @@ pub struct EpubFile<'a, W> {
 
 impl<'a, W> EpubFile<'a, W>
 where
-    W: AsyncWrite + Unpin,
+    W: AsyncWrite + Unpin + Send,
 {
     pub fn new(epub: Epub<'a>, writer: W, compression: ZipCompression) -> EpubFile<'a, W> {
         Self {
@@ -90,10 +90,11 @@ where
         Ok(())
     }
 
-    async fn add_file<F: ToString, B: AsRef<[u8]>>(
-        &mut self,
-        file_content: FileContent<F, B>,
-    ) -> crate::Result {
+    async fn add_file<F, B>(&mut self, file_content: FileContent<F, B>) -> crate::Result
+    where
+        F: ToString,
+        B: AsRef<[u8]>,
+    {
         let builder =
             ZipEntryBuilder::new(file_content.filepath.to_string().into(), self.compression)
                 .unix_permissions(0o755)
@@ -105,10 +106,11 @@ where
         Ok(())
     }
 
-    async fn add_files<F: ToString, B: AsRef<[u8]>>(
-        &mut self,
-        file_contents: Vec<FileContent<F, B>>,
-    ) -> crate::Result {
+    async fn add_files<F, B>(&mut self, file_contents: Vec<FileContent<F, B>>) -> crate::Result
+    where
+        F: ToString,
+        B: AsRef<[u8]>,
+    {
         for fc in file_contents {
             self.add_file(fc).await?;
         }

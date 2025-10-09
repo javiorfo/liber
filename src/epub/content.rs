@@ -4,27 +4,27 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub enum ReferenceType<'a> {
-    Acknowledgements(&'a str),
-    Bibliography(&'a str),
-    Colophon(&'a str),
-    Copyright(&'a str),
-    Cover(&'a str),
-    Dedication(&'a str),
-    Epigraph(&'a str),
-    Foreword(&'a str),
-    Glossary(&'a str),
-    Index(&'a str),
-    Loi(&'a str),
-    Lot(&'a str),
-    Notes(&'a str),
-    Preface(&'a str),
-    Text(&'a str),
-    TitlePage(&'a str),
-    Toc(&'a str),
+pub enum ReferenceType {
+    Acknowledgements(String),
+    Bibliography(String),
+    Colophon(String),
+    Copyright(String),
+    Cover(String),
+    Dedication(String),
+    Epigraph(String),
+    Foreword(String),
+    Glossary(String),
+    Index(String),
+    Loi(String),
+    Lot(String),
+    Notes(String),
+    Preface(String),
+    Text(String),
+    TitlePage(String),
+    Toc(String),
 }
 
-impl ReferenceType<'_> {
+impl ReferenceType {
     pub(crate) fn type_and_title(&self) -> (&str, &str) {
         match self {
             Self::Acknowledgements(s) => ("acknowledgements", s),
@@ -51,13 +51,13 @@ impl ReferenceType<'_> {
 #[derive(Debug, Clone)]
 pub struct Content<'a> {
     body: &'a [u8],
-    pub(crate) reference_type: ReferenceType<'a>,
+    pub(crate) reference_type: ReferenceType,
     pub(crate) subcontents: Option<Vec<Content<'a>>>,
-    pub(crate) content_references: Option<Vec<ContentReference<'a>>>,
+    pub(crate) content_references: Option<Vec<ContentReference>>,
 }
 
 impl<'a> Content<'a> {
-    fn new(body: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
+    fn new(body: &'a [u8], reference_type: ReferenceType) -> Self {
         Self {
             body,
             reference_type,
@@ -67,25 +67,20 @@ impl<'a> Content<'a> {
     }
 
     pub(crate) fn level(&self) -> usize {
-        match self.subcontents {
-            Some(ref subcontents) if subcontents.is_empty() => 0,
-            Some(ref subcontents) => 1 + subcontents[0].level(),
-            None => 0,
-        }
+        self.subcontents
+            .as_ref()
+            .map_or(0, |subcontents| 1 + subcontents[0].level())
     }
 
     pub(crate) fn level_reference_content(&self) -> usize {
-        let content_references_level = match self.content_references {
-            Some(ref content_references) if content_references.is_empty() => 0,
-            Some(ref content_references) => 1 + content_references[0].level(),
-            None => 0,
-        };
+        let content_references_level = self
+            .content_references
+            .as_ref()
+            .map_or(0, |content_references| 1 + content_references[0].level());
 
-        let subcontents_cont_ref_level = match self.subcontents {
-            Some(ref subcontents) if subcontents.is_empty() => 0,
-            Some(ref subcontents) => 1 + subcontents[0].level_reference_content(),
-            None => 0,
-        };
+        let subcontents_cont_ref_level = self.subcontents.as_ref().map_or(0, |subcontents| {
+            1 + subcontents[0].level_reference_content()
+        });
 
         content_references_level.max(subcontents_cont_ref_level)
     }
@@ -167,7 +162,7 @@ pub struct ContentBuilder<'a>(Content<'a>);
 
 impl<'a> ContentBuilder<'a> {
     #[must_use]
-    pub fn new(body: &'a [u8], reference_type: ReferenceType<'a>) -> Self {
+    pub fn new(body: &'a [u8], reference_type: ReferenceType) -> Self {
         Self(Content::new(body, reference_type))
     }
 
@@ -185,7 +180,7 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
-    pub fn add_content_reference(mut self, content_reference: ContentReference<'a>) -> Self {
+    pub fn add_content_reference(mut self, content_reference: ContentReference) -> Self {
         if let Some(ref mut content_references) = self.0.content_references {
             content_references.push(content_reference);
         } else {
@@ -194,7 +189,7 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
-    pub fn content_references(mut self, content_references: Vec<ContentReference<'a>>) -> Self {
+    pub fn content_references(mut self, content_references: Vec<ContentReference>) -> Self {
         self.0.content_references = Some(content_references);
         self
     }

@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub(crate) struct Epub<'a> {
-    pub metadata: Metadata<'a>,
+    pub metadata: Metadata,
     pub stylesheet: Option<&'a [u8]>,
     pub cover_image: Option<Resource<'a>>,
     pub resources: Option<Vec<Resource<'a>>>,
@@ -16,7 +16,7 @@ pub(crate) struct Epub<'a> {
 }
 
 impl<'a> Epub<'a> {
-    fn new(metadata: Metadata<'a>) -> Epub<'a> {
+    fn new(metadata: Metadata) -> Epub<'a> {
         Self {
             metadata,
             stylesheet: None,
@@ -63,7 +63,7 @@ pub struct EpubBuilder<'a>(Epub<'a>);
 
 impl<'a> EpubBuilder<'a> {
     #[must_use]
-    pub fn new(metadata: Metadata<'a>) -> Self {
+    pub fn new(metadata: Metadata) -> Self {
         Self(Epub::new(metadata))
     }
 
@@ -118,20 +118,23 @@ impl<'a> EpubBuilder<'a> {
     }
 
     #[cfg(feature = "async")]
-    pub async fn async_create<W: tokio::io::AsyncWrite + Unpin>(
-        self,
-        writer: &mut W,
-    ) -> crate::Result {
+    pub async fn async_create<W>(self, writer: &mut W) -> crate::Result
+    where
+        W: tokio::io::AsyncWrite + Unpin + Send,
+    {
         self.async_create_with_compression(writer, ZipCompression::Stored)
             .await
     }
 
     #[cfg(feature = "async")]
-    pub async fn async_create_with_compression<W: tokio::io::AsyncWrite + Unpin>(
+    pub async fn async_create_with_compression<W>(
         self,
         writer: &mut W,
         compression: ZipCompression,
-    ) -> crate::Result {
+    ) -> crate::Result
+    where
+        W: tokio::io::AsyncWrite + Unpin + Send,
+    {
         use crate::output::creator_async::EpubFile;
 
         EpubFile::new(self.0, writer, compression).create().await
@@ -209,17 +212,17 @@ mod tests {
             .add_content(
                 ContentBuilder::new(
                     "<body><h1>Part I</h1></body>".as_bytes(),
-                    ReferenceType::TitlePage("Part I"),
+                    ReferenceType::TitlePage("Part I".to_string()),
                 )
                 .add_subcontent(
                     ContentBuilder::new(
                         "<body><h1>Chapter 1</h1></body>".as_bytes(),
-                        ReferenceType::Text("Chapter 1"),
+                        ReferenceType::Text("Chapter 1".to_string()),
                     )
                     .add_content_reference(ContentReference::new("Content 1.1"))
                     .add_content_reference(
                         ContentReference::new("Content 1.2")
-                            .add_subcontent_reference(ContentReference::new("Content 1.2.1")),
+                            .nest(ContentReference::new("Content 1.2.1")),
                     )
                     .build(),
                 )
@@ -228,7 +231,7 @@ mod tests {
             .add_content(
                 ContentBuilder::new(
                     "<body><h1>Part II</h1></body>".as_bytes(),
-                    ReferenceType::TitlePage("Part II"),
+                    ReferenceType::TitlePage("Part II".to_string()),
                 )
                 .add_content_reference(ContentReference::new("Content 2.1"))
                 .build(),

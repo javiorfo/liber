@@ -94,20 +94,22 @@ where
         Ok(())
     }
 
-    fn add_file<F: ToString, B: AsRef<[u8]>>(
-        &mut self,
-        file_content: FileContent<F, B>,
-    ) -> crate::Result {
+    fn add_file<F, B>(&mut self, file_content: FileContent<F, B>) -> crate::Result
+    where
+        F: ToString,
+        B: AsRef<[u8]>,
+    {
         self.zip_writer
             .start_file(file_content.filepath, self.options)?;
         self.zip_writer.write_all(file_content.bytes.as_ref())?;
         Ok(())
     }
 
-    fn add_files<F: ToString, B: AsRef<[u8]>>(
-        &mut self,
-        file_contents: Vec<FileContent<F, B>>,
-    ) -> crate::Result {
+    fn add_files<F, B>(&mut self, file_contents: Vec<FileContent<F, B>>) -> crate::Result
+    where
+        F: ToString,
+        B: AsRef<[u8]>,
+    {
         for fc in file_contents {
             self.add_file(fc)?;
         }

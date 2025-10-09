@@ -1,18 +1,18 @@
 #[derive(Debug, Clone)]
-pub struct ContentReference<'a> {
-    pub title: &'a str,
-    pub subcontent_references: Option<Vec<ContentReference<'a>>>,
+pub struct ContentReference {
+    pub title: String,
+    pub subcontent_references: Option<Vec<ContentReference>>,
 }
 
-impl<'a> ContentReference<'a> {
-    pub fn new(title: &'a str) -> Self {
+impl ContentReference {
+    pub fn new<S: ToString>(title: S) -> Self {
         Self {
-            title,
+            title: title.to_string(),
             subcontent_references: None,
         }
     }
 
-    pub fn add_subcontent_reference(mut self, content_reference: ContentReference<'a>) -> Self {
+    pub fn nest(mut self, content_reference: ContentReference) -> Self {
         if let Some(ref mut subcontent_references) = self.subcontent_references {
             subcontent_references.push(content_reference);
         } else {
@@ -22,10 +22,10 @@ impl<'a> ContentReference<'a> {
     }
 
     pub(crate) fn level(&self) -> usize {
-        match self.subcontent_references {
-            Some(ref subcontent_references) if subcontent_references.is_empty() => 0,
-            Some(ref subcontent_references) => 1 + subcontent_references[0].level(),
-            None => 0,
-        }
+        self.subcontent_references
+            .as_ref()
+            .map_or(0, |subcontent_references| {
+                1 + subcontent_references[0].level()
+            })
     }
 }

@@ -4,19 +4,19 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
-pub struct Metadata<'a> {
+pub struct Metadata {
     pub title: String,
     pub language: Language,
     pub identifier: Identifier,
-    pub creator: Option<&'a str>,
-    pub contributor: Option<&'a str>,
-    pub publisher: Option<&'a str>,
+    pub creator: Option<String>,
+    pub contributor: Option<String>,
+    pub publisher: Option<String>,
     pub date: Option<DateTime<Utc>>,
-    pub subject: Option<&'a str>,
-    pub description: Option<&'a str>,
+    pub subject: Option<String>,
+    pub description: Option<String>,
 }
 
-impl<'a> Metadata<'a> {
+impl Metadata {
     fn new<S: ToString>(title: S, language: Language, identifier: Identifier) -> Self {
         Self {
             title: title.to_string(),
@@ -38,19 +38,22 @@ impl<'a> Metadata<'a> {
     pub(crate) fn creator_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:creator opf:role="aut">{}</dc:creator>"#,
-            self.creator?
+            self.creator.as_ref()?
         ))
     }
 
     pub(crate) fn contributor_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:contributor opf:role="trl">{}</dc:contributor>"#,
-            self.contributor?
+            self.contributor.as_ref()?
         ))
     }
 
     pub(crate) fn publisher_as_metadata_xml(&self) -> Option<String> {
-        Some(format!("<dc:publisher>{}</dc:publisher>", self.publisher?))
+        Some(format!(
+            "<dc:publisher>{}</dc:publisher>",
+            self.publisher.as_ref()?
+        ))
     }
 
     pub(crate) fn date_as_metadata_xml(&self) -> Option<String> {
@@ -61,23 +64,26 @@ impl<'a> Metadata<'a> {
     }
 
     pub(crate) fn subject_as_metadata_xml(&self) -> Option<String> {
-        Some(format!("<dc:subject>{}</dc:subject>", self.subject?))
+        Some(format!(
+            "<dc:subject>{}</dc:subject>",
+            self.subject.as_ref()?
+        ))
     }
 
     pub(crate) fn description_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             "<dc:description>{}</dc:description>",
-            self.description?
+            self.description.as_ref()?
         ))
     }
 }
 
 #[derive(Debug)]
-pub struct MetadataBuilder<'a>(Metadata<'a>);
+pub struct MetadataBuilder(Metadata);
 
-impl<'a> MetadataBuilder<'a> {
+impl MetadataBuilder {
     #[must_use]
-    pub fn title(title: &'a str) -> Self {
+    pub fn title<S: ToString>(title: S) -> Self {
         Self(Metadata::new(
             title,
             Language::default(),
@@ -95,18 +101,18 @@ impl<'a> MetadataBuilder<'a> {
         self
     }
 
-    pub fn creator(mut self, creator: &'a str) -> Self {
-        self.0.creator = Some(creator);
+    pub fn creator<S: ToString>(mut self, creator: S) -> Self {
+        self.0.creator = Some(creator.to_string());
         self
     }
 
-    pub fn contributor(mut self, contributor: &'a str) -> Self {
-        self.0.contributor = Some(contributor);
+    pub fn contributor<S: ToString>(mut self, contributor: S) -> Self {
+        self.0.contributor = Some(contributor.to_string());
         self
     }
 
-    pub fn publisher(mut self, publisher: &'a str) -> Self {
-        self.0.publisher = Some(publisher);
+    pub fn publisher<S: ToString>(mut self, publisher: S) -> Self {
+        self.0.publisher = Some(publisher.to_string());
         self
     }
 
@@ -115,17 +121,17 @@ impl<'a> MetadataBuilder<'a> {
         self
     }
 
-    pub fn subject(mut self, subject: &'a str) -> Self {
-        self.0.subject = Some(subject);
+    pub fn subject<S: ToString>(mut self, subject: S) -> Self {
+        self.0.subject = Some(subject.to_string());
         self
     }
 
-    pub fn description(mut self, description: &'a str) -> Self {
-        self.0.description = Some(description);
+    pub fn description<S: ToString>(mut self, description: S) -> Self {
+        self.0.description = Some(description.to_string());
         self
     }
 
-    pub fn build(self) -> Metadata<'a> {
+    pub fn build(self) -> Metadata {
         self.0
     }
 }
@@ -334,12 +340,12 @@ mod tests {
             .description(description)
             .build();
 
-        assert_eq!(metadata.creator, Some(creator));
+        assert_eq!(metadata.creator, Some(creator.to_string()));
         assert_eq!(metadata.contributor, None);
-        assert_eq!(metadata.publisher, Some(publisher));
+        assert_eq!(metadata.publisher, Some(publisher.to_string()));
         assert!(metadata.date.is_some());
-        assert_eq!(metadata.subject, Some(subject));
-        assert_eq!(metadata.description, Some(description));
+        assert_eq!(metadata.subject, Some(subject.to_string()));
+        assert_eq!(metadata.description, Some(description.to_string()));
     }
 
     #[test]

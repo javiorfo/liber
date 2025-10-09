@@ -238,7 +238,7 @@ fn content_references_to_nav_point(
     current_xhtml: usize,
     play_order: &mut usize,
     toc_index: &str,
-    content_references: &[ContentReference<'_>],
+    content_references: &[ContentReference],
     link_number: &mut usize,
 ) -> Option<String> {
     let mut result = String::new();
