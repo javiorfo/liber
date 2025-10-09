@@ -2,7 +2,7 @@
 name = "liber"
 version = "0.1.0"
 edition = "2024"
-description = "Rust library for creating EPUB 2.0.1 files"
+description = "Rust library for creating (sync/async) EPUB files"
 authors = ["Javier Orfo <javierorfo@protonmail.com>"]
 license = "MIT"
 repository = "https://github.com/javiorfo/liber"

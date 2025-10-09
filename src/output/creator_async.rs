@@ -92,13 +92,12 @@ where
 
     async fn add_file<F, B>(&mut self, file_content: FileContent<F, B>) -> crate::Result
     where
-        F: ToString,
+        F: Into<String>,
         B: AsRef<[u8]>,
     {
-        let builder =
-            ZipEntryBuilder::new(file_content.filepath.to_string().into(), self.compression)
-                .unix_permissions(0o755)
-                .build();
+        let builder = ZipEntryBuilder::new(file_content.filepath.into().into(), self.compression)
+            .unix_permissions(0o755)
+            .build();
 
         self.zip_writer
             .write_entry_whole(builder, file_content.bytes.as_ref())
@@ -108,7 +107,7 @@ where
 
     async fn add_files<F, B>(&mut self, file_contents: Vec<FileContent<F, B>>) -> crate::Result
     where
-        F: ToString,
+        F: Into<String>,
         B: AsRef<[u8]>,
     {
         for fc in file_contents {

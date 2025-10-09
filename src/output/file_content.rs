@@ -1,12 +1,16 @@
 use crate::epub::{Content, ContentReference, Epub};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FileContent<F, B> {
     pub filepath: F,
     pub bytes: B,
 }
 
-impl<F: ToString, B: AsRef<[u8]>> FileContent<F, B> {
+impl<F, B> FileContent<F, B>
+where
+    F: Into<String>,
+    B: AsRef<[u8]>,
+{
     pub fn new(filepath: F, bytes: B) -> FileContent<F, B> {
         Self { filepath, bytes }
     }
@@ -52,19 +56,19 @@ pub fn display_options<'a>() -> FileContent<&'a str, &'a [u8]> {
 pub struct ContentBuilder(String);
 
 impl ContentBuilder {
-    pub fn add<S: ToString>(&mut self, value: S) {
-        self.0.push_str(&value.to_string());
+    pub fn add<S: Into<String>>(&mut self, value: S) {
+        self.0.push_str(&value.into());
     }
 
-    pub fn add_optional<S: ToString>(&mut self, value: Option<S>) {
+    pub fn add_optional<S: Into<String>>(&mut self, value: Option<S>) {
         if let Some(value) = value {
-            self.0.push_str(&value.to_string());
+            self.0.push_str(&value.into());
         }
     }
 
-    pub fn add_if_some<T, S: ToString>(&mut self, value: S, some: Option<T>) {
+    pub fn add_if_some<T, S: Into<String>>(&mut self, value: S, some: Option<T>) {
         if some.is_some() {
-            self.0.push_str(&value.to_string());
+            self.0.push_str(&value.into());
         }
     }
 
@@ -208,7 +212,7 @@ fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Op
         let nav_point = format!(
             r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}">
             <navLabel><text>{text}</text></navLabel>
-            <content src="{file}"/>{subs}{content_references}</navPoint>"#,
+            <content src="{file}"/>{content_references}{subs}</navPoint>"#,
             text = content.title(),
             file = Content::filename(current_play_order),
             subs = content

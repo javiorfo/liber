@@ -86,8 +86,12 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
-    pub fn resources(mut self, resources: Vec<Resource<'a>>) -> Self {
-        self.0.resources = Some(resources);
+    pub fn add_resources(mut self, resources: Vec<Resource<'a>>) -> Self {
+        if let Some(ref mut self_resources) = self.0.resources {
+            self_resources.extend(resources);
+        } else {
+            self.0.resources = Some(resources);
+        }
         self
     }
 
@@ -100,8 +104,12 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
-    pub fn contents(mut self, contents: Vec<Content<'a>>) -> Self {
-        self.0.contents = Some(contents);
+    pub fn add_contents(mut self, contents: Vec<Content<'a>>) -> Self {
+        if let Some(ref mut self_contents) = self.0.contents {
+            self_contents.extend(contents);
+        } else {
+            self.0.contents = Some(contents);
+        }
         self
     }
 
@@ -214,7 +222,7 @@ mod tests {
                     "<body><h1>Part I</h1></body>".as_bytes(),
                     ReferenceType::TitlePage("Part I".to_string()),
                 )
-                .add_subcontent(
+                .add_child(
                     ContentBuilder::new(
                         "<body><h1>Chapter 1</h1></body>".as_bytes(),
                         ReferenceType::Text("Chapter 1".to_string()),
@@ -222,7 +230,7 @@ mod tests {
                     .add_content_reference(ContentReference::new("Content 1.1"))
                     .add_content_reference(
                         ContentReference::new("Content 1.2")
-                            .nest(ContentReference::new("Content 1.2.1")),
+                            .add_child(ContentReference::new("Content 1.2.1")),
                     )
                     .build(),
                 )

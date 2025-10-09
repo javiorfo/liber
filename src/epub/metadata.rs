@@ -17,9 +17,9 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    fn new<S: ToString>(title: S, language: Language, identifier: Identifier) -> Self {
+    fn new<S: Into<String>>(title: S, language: Language, identifier: Identifier) -> Self {
         Self {
-            title: title.to_string(),
+            title: title.into(),
             language,
             identifier,
             creator: None,
@@ -83,7 +83,7 @@ pub struct MetadataBuilder(Metadata);
 
 impl MetadataBuilder {
     #[must_use]
-    pub fn title<S: ToString>(title: S) -> Self {
+    pub fn title<S: Into<String>>(title: S) -> Self {
         Self(Metadata::new(
             title,
             Language::default(),
@@ -101,18 +101,18 @@ impl MetadataBuilder {
         self
     }
 
-    pub fn creator<S: ToString>(mut self, creator: S) -> Self {
-        self.0.creator = Some(creator.to_string());
+    pub fn creator<S: Into<String>>(mut self, creator: S) -> Self {
+        self.0.creator = Some(creator.into());
         self
     }
 
-    pub fn contributor<S: ToString>(mut self, contributor: S) -> Self {
-        self.0.contributor = Some(contributor.to_string());
+    pub fn contributor<S: Into<String>>(mut self, contributor: S) -> Self {
+        self.0.contributor = Some(contributor.into());
         self
     }
 
-    pub fn publisher<S: ToString>(mut self, publisher: S) -> Self {
-        self.0.publisher = Some(publisher.to_string());
+    pub fn publisher<S: Into<String>>(mut self, publisher: S) -> Self {
+        self.0.publisher = Some(publisher.into());
         self
     }
 
@@ -121,13 +121,13 @@ impl MetadataBuilder {
         self
     }
 
-    pub fn subject<S: ToString>(mut self, subject: S) -> Self {
-        self.0.subject = Some(subject.to_string());
+    pub fn subject<S: Into<String>>(mut self, subject: S) -> Self {
+        self.0.subject = Some(subject.into());
         self
     }
 
-    pub fn description<S: ToString>(mut self, description: S) -> Self {
-        self.0.description = Some(description.to_string());
+    pub fn description<S: Into<String>>(mut self, description: S) -> Self {
+        self.0.description = Some(description.into());
         self
     }
 

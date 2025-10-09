@@ -166,7 +166,7 @@ impl<'a> ContentBuilder<'a> {
         Self(Content::new(body, reference_type))
     }
 
-    pub fn add_subcontent(mut self, content: Content<'a>) -> Self {
+    pub fn add_child(mut self, content: Content<'a>) -> Self {
         if let Some(ref mut subcontents) = self.0.subcontents {
             subcontents.push(content);
         } else {
@@ -175,8 +175,12 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
-    pub fn subcontents(mut self, contents: Vec<Content<'a>>) -> Self {
-        self.0.subcontents = Some(contents);
+    pub fn add_children(mut self, contents: Vec<Content<'a>>) -> Self {
+        if let Some(ref mut subcontents) = self.0.subcontents {
+            subcontents.extend(contents);
+        } else {
+            self.0.subcontents = Some(contents);
+        }
         self
     }
 
@@ -189,12 +193,203 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
-    pub fn content_references(mut self, content_references: Vec<ContentReference>) -> Self {
-        self.0.content_references = Some(content_references);
+    pub fn add_content_references(mut self, content_references: Vec<ContentReference>) -> Self {
+        if let Some(ref mut self_content_references) = self.0.content_references {
+            self_content_references.extend(content_references);
+        } else {
+            self.0.content_references = Some(content_references);
+        }
         self
     }
 
     pub fn build(self) -> Content<'a> {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_content(body: &'static str, title: &'static str) -> Content<'static> {
+        ContentBuilder::new(body.as_bytes(), ReferenceType::Text(title.to_string())).build()
+    }
+
+    fn make_cr(title: &'static str) -> ContentReference {
+        ContentReference::new(title)
+    }
+
+    #[test]
+    fn test_content_builder_add_child() {
+        let parent_body = b"parent";
+        let child_content = make_content("child", "Child Title");
+
+        let parent_content =
+            ContentBuilder::new(parent_body, ReferenceType::Text("Parent".to_string()))
+                .add_child(child_content.clone())
+                .build();
+
+        let subs = parent_content.subcontents.unwrap();
+        assert_eq!(subs.len(), 1);
+        assert_eq!(subs[0].body, b"child");
+    }
+
+    #[test]
+    fn test_content_builder_add_children() {
+        let parent_body = b"parent";
+        let children = vec![make_content("child1", "C1"), make_content("child2", "C2")];
+
+        let parent_content =
+            ContentBuilder::new(parent_body, ReferenceType::TitlePage("Parent".to_string()))
+                .add_children(children)
+                .build();
+
+        assert_eq!(parent_content.subcontents.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_content_builder_add_content_reference() {
+        let content_ref = make_cr("Reference 1");
+
+        let content = ContentBuilder::new(b"", ReferenceType::Text("T".to_string()))
+            .add_content_reference(content_ref.clone())
+            .build();
+
+        let refs = content.content_references.unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].title, "Reference 1");
+    }
+
+    #[test]
+    fn test_content_builder_add_content_references() {
+        let refs = vec![make_cr("R1"), make_cr("R2")];
+
+        let content = ContentBuilder::new(b"", ReferenceType::Text("T".to_string()))
+            .add_content_references(refs)
+            .build();
+
+        assert_eq!(content.content_references.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_content_level_no_subcontents() {
+        let content = make_content("body", "Leaf");
+        assert_eq!(content.level(), 0);
+    }
+
+    #[test]
+    fn test_content_level_one_deep() {
+        let child = make_content("child", "C");
+        let parent = ContentBuilder::new(b"parent", ReferenceType::Preface("P".to_string()))
+            .add_child(child)
+            .build();
+        assert_eq!(parent.level(), 1);
+    }
+
+    #[test]
+    fn test_content_level_two_deep() {
+        let grandchild = make_content("gc", "GC");
+        let child = ContentBuilder::new(b"c", ReferenceType::Preface("C".to_string()))
+            .add_child(grandchild)
+            .build();
+        let parent = ContentBuilder::new(b"p", ReferenceType::TitlePage("P".to_string()))
+            .add_child(child)
+            .build();
+        assert_eq!(parent.level(), 2);
+    }
+
+    #[test]
+    fn test_level_reference_content_only_content_references() {
+        let deep_cr = make_cr("Deep CR").add_child(make_cr("Sub"));
+
+        let content = ContentBuilder::new(b"", ReferenceType::Text("T".to_string()))
+            .add_content_reference(deep_cr)
+            .build();
+
+        assert_eq!(content.level_reference_content(), 2);
+    }
+
+    #[test]
+    fn test_level_reference_content_only_subcontents() {
+        let child_cr = make_cr("Child CR");
+        let child = ContentBuilder::new(b"c", ReferenceType::Text("C".to_string()))
+            .add_content_reference(child_cr)
+            .build();
+
+        let parent = ContentBuilder::new(b"p", ReferenceType::Text("P".to_string()))
+            .add_child(child)
+            .build();
+
+        assert_eq!(parent.level_reference_content(), 2);
+    }
+
+    #[test]
+    fn test_level_reference_content_mixed_max_from_subcontents() {
+        let parent_cr = make_cr("P CR");
+        let deep_child_cr = make_cr("DCR").add_child(make_cr("Sub"));
+        let child = ContentBuilder::new(b"c", ReferenceType::Text("C".to_string()))
+            .add_content_reference(deep_child_cr)
+            .build();
+
+        let parent = ContentBuilder::new(b"p", ReferenceType::Text("P".to_string()))
+            .add_content_reference(parent_cr)
+            .add_child(child)
+            .build();
+
+        assert_eq!(parent.level_reference_content(), 3);
+    }
+
+    #[test]
+    fn test_content_xhtml_no_stylesheet() {
+        let content = make_content("<body>Content</body>", "Test");
+        let expected = r#"<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+            <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Test</title></head><body>Content</body></html>"#;
+        assert_eq!(content.xhtml("<body>Content</body>", false), expected);
+    }
+
+    #[test]
+    fn test_content_xhtml_with_stylesheet() {
+        let content = make_content("<body>Content</body>", "Test");
+        let expected = r#"<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+            <html xmlns="http://www.w3.org/1999/xhtml"><head><title>Test</title><link href="style.css" rel="stylesheet" type="text/css"/></head><body>Content</body></html>"#;
+        assert_eq!(content.xhtml("<body>Content</body>", true), expected);
+    }
+
+    #[test]
+    fn test_content_file_content_no_subcontents() {
+        let content = make_content("body text", "Chapter 1");
+        let mut number = 0;
+        let files = content.file_content(&mut number, false).unwrap();
+
+        assert_eq!(number, 1);
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filepath, "OEBPS/c01.xhtml");
+
+        assert!(files[0].bytes.contains("<title>Chapter 1</title>"));
+        assert!(files[0].bytes.contains("body text"));
+    }
+
+    #[test]
+    fn test_content_file_content_with_subcontents() {
+        let child1 = make_content("c1", "Section 1.1");
+        let child2 = make_content("c2", "Section 1.2");
+        let parent = ContentBuilder::new(b"p", ReferenceType::Text("Chapter 1".to_string()))
+            .add_child(child1)
+            .add_child(child2)
+            .build();
+
+        let mut number = 0;
+        let files = parent.file_content(&mut number, false).unwrap();
+
+        assert_eq!(number, 3);
+        assert_eq!(files.len(), 3);
+
+        assert_eq!(files[0].filepath, "OEBPS/c01.xhtml");
+        assert_eq!(files[1].filepath, "OEBPS/c02.xhtml");
+        assert_eq!(files[2].filepath, "OEBPS/c03.xhtml");
+
+        assert!(files[0].bytes.contains("<title>Chapter 1</title>"));
+        assert!(files[1].bytes.contains("<title>Section 1.1</title>"));
+        assert!(files[2].bytes.contains("<title>Section 1.2</title>"));
     }
 }
