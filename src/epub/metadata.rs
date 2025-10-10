@@ -257,26 +257,30 @@ impl Identifier {
         format!(
             r#"<dc:identifier id="BookId" opf:scheme="{}">{}</dc:identifier>"#,
             self,
-            self.as_ref()
+            std::string::String::from(self)
         )
     }
 
     pub(crate) fn as_toc_xml(&self) -> String {
-        format!(r#"<meta name="dtb:uid" content="{}"/>"#, self.as_ref())
+        format!(
+            r#"<meta name="dtb:uid" content="{}"/>"#,
+            std::string::String::from(self)
+        )
     }
 }
 
-impl AsRef<str> for Identifier {
-    fn as_ref(&self) -> &str {
-        match self {
-            Self::UUID(value) | Self::ISBN(value) => value.as_str(),
+impl From<&Identifier> for String {
+    fn from(value: &Identifier) -> Self {
+        match value {
+            Identifier::UUID(value) => format!("urn:uuid:{}", value),
+            Identifier::ISBN(value) => format!("urn:isbn:{}", value),
         }
     }
 }
 
 impl Default for Identifier {
     fn default() -> Self {
-        Identifier::UUID(format!("urn:uuid:{}", Uuid::new_v4()))
+        Identifier::UUID(Uuid::new_v4().to_string())
     }
 }
 
@@ -353,16 +357,8 @@ mod tests {
         let default_identifier = Identifier::default();
 
         match default_identifier {
-            Identifier::UUID(uuid_string) => {
-                assert!(uuid_string.starts_with("urn:uuid:"));
-
-                let uuid_str = uuid_string
-                    .strip_prefix("urn:uuid:")
-                    .expect("prefix urn:uuid: not found");
-
-                let parsed_uuid = Uuid::parse_str(uuid_str);
-
-                assert!(parsed_uuid.is_ok());
+            Identifier::UUID(value) => {
+                assert!(Uuid::parse_str(&value).is_ok());
             }
             _ => panic!("Default identifier was not a UUID"),
         }

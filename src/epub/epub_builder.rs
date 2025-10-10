@@ -59,7 +59,7 @@ impl<'a> Epub<'a> {
 }
 
 #[derive(Debug)]
-pub struct EpubBuilder<'a>(Epub<'a>);
+pub struct EpubBuilder<'a>(pub(crate) Epub<'a>);
 
 impl<'a> EpubBuilder<'a> {
     #[must_use]
@@ -199,8 +199,6 @@ mod tests {
 
     #[test]
     fn test_epub_builder_complete() {
-        let metadata = MetadataBuilder::title("Title").build();
-
         let temp_dir = tempdir().expect("Error creating tempdir");
         let cover_image = temp_dir.path().join("cover.png");
         let font = temp_dir.path().join("SomeFont.ttf");
@@ -213,7 +211,7 @@ mod tests {
         file.write_all(b"dummy font data")
             .expect("Error writing to mock font");
 
-        let epub_result = EpubBuilder::new(metadata)
+        let epub_result = EpubBuilder::new(MetadataBuilder::title("Title").build())
             .stylesheet(b"body { color: red; }")
             .cover_image(&cover_image, ImageType::Png)
             .add_resource(Resource::Font(&font))
@@ -245,6 +243,44 @@ mod tests {
                 .build(),
             )
             .create(&mut std::io::stdout());
+
+        assert!(epub_result.is_ok());
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "async")]
+    async fn test_async_epub_builder_complete() {
+        let epub_result = EpubBuilder::new(MetadataBuilder::title("Title").build())
+            .stylesheet(b"body { color: red; }")
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Part I</h1></body>".as_bytes(),
+                    ReferenceType::TitlePage("Part I".to_string()),
+                )
+                .add_child(
+                    ContentBuilder::new(
+                        "<body><h1>Chapter 1</h1></body>".as_bytes(),
+                        ReferenceType::Text("Chapter 1".to_string()),
+                    )
+                    .add_content_reference(ContentReference::new("Content 1.1"))
+                    .add_content_reference(
+                        ContentReference::new("Content 1.2")
+                            .add_child(ContentReference::new("Content 1.2.1")),
+                    )
+                    .build(),
+                )
+                .build(),
+            )
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Part II</h1></body>".as_bytes(),
+                    ReferenceType::TitlePage("Part II".to_string()),
+                )
+                .add_content_reference(ContentReference::new("Content 2.1"))
+                .build(),
+            )
+            .async_create(&mut tokio::io::stdout())
+            .await;
 
         assert!(epub_result.is_ok());
     }

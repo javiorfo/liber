@@ -285,3 +285,175 @@ fn content_references_to_nav_point(
 
     Some(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::epub::{
+        ContentBuilder, ContentReference, EpubBuilder, Identifier, MetadataBuilder, ReferenceType,
+    };
+
+    use super::{content_references_to_nav_point, contents_to_nav_point, toc_ncx};
+
+    fn cleaner(xml: String) -> String {
+        xml.replace("\n", "").replace("            ", "")
+    }
+
+    #[test]
+    fn test_toc_ncx_simple_content() {
+        let mock_epub = EpubBuilder::new(
+            MetadataBuilder::title("Title")
+                .identifier(Identifier::UUID("mock-epub-id".to_string()))
+                .build(),
+        )
+        .add_content(
+            ContentBuilder::new(
+                "<body><h1>Chapter I</h1></body>".as_bytes(),
+                ReferenceType::Text("Chapter I".to_string()),
+            )
+            .build(),
+        )
+        .add_content(
+            ContentBuilder::new(
+                "<body><h1>Chapter II</h1></body>".as_bytes(),
+                ReferenceType::Text("Chapter II".to_string()),
+            )
+            .build(),
+        );
+
+        let result = toc_ncx(&mock_epub.0);
+
+        assert!(result.is_ok());
+        let file_content = result.unwrap();
+
+        assert_eq!(file_content.filepath, "OEBPS/toc.ncx");
+
+        let content = cleaner(file_content.bytes);
+        assert!(content.contains(r#"<meta name="dtb:uid" content="urn:uuid:mock-epub-id"/>"#));
+        assert!(content.contains(r#"<meta name="dtb:depth" content="1"/>"#));
+        assert!(content.contains(r#"<docTitle><text>Title</text></docTitle>"#));
+        assert!(content.contains(r#"<navPoint id="navPoint-1" playOrder="1"><navLabel><text>Chapter I</text></navLabel><content src="c01.xhtml"/></navPoint>"#));
+        assert!(content.contains(r#"<navPoint id="navPoint-2" playOrder="2"><navLabel><text>Chapter II</text></navLabel><content src="c02.xhtml"/></navPoint>"#));
+        assert!(content.ends_with(r#"</navMap></ncx>"#));
+    }
+
+    #[test]
+    fn test_toc_ncx_no_content() {
+        let mock_epub = EpubBuilder::new(MetadataBuilder::title("Empty Book").build());
+        let result = toc_ncx(&mock_epub.0);
+
+        assert!(result.is_ok());
+        let file_content = result.unwrap();
+
+        let content = file_content.bytes;
+        assert!(content.contains(r#"<docTitle><text>Empty Book</text></docTitle><navMap>"#));
+        assert!(content.contains(r#"<meta name="dtb:totalPageCount" content="0"/>"#));
+        assert!(
+            content.ends_with(
+                r#"<docTitle><text>Empty Book</text></docTitle><navMap></navMap></ncx>"#
+            )
+        );
+    }
+
+    #[test]
+    fn test_contents_to_nav_point_nested() {
+        let mock_epub = EpubBuilder::new(MetadataBuilder::title("Title").build())
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Main Chapter</h1></body>".as_bytes(),
+                    ReferenceType::Text("Main Chapter".to_string()),
+                )
+                .add_children(vec![
+                    ContentBuilder::new(
+                        "<body><h1>Section 1.1</h1></body>".as_bytes(),
+                        ReferenceType::Text("Section 1.1".to_string()),
+                    )
+                    .build(),
+                    ContentBuilder::new(
+                        "<body><h1>Section 1.2</h1></body>".as_bytes(),
+                        ReferenceType::Text("Section 1.2".to_string()),
+                    )
+                    .build(),
+                ])
+                .build(),
+            )
+            .add_content(
+                ContentBuilder::new(
+                    "<body><h1>Next Chapter</h1></body>".as_bytes(),
+                    ReferenceType::Text("Next Chapter".to_string()),
+                )
+                .build(),
+            );
+
+        let mut play_order = 0;
+
+        let result = contents_to_nav_point(&mut play_order, &mock_epub.0.contents.unwrap());
+
+        assert!(result.is_some());
+        let xml = cleaner(result.unwrap());
+
+        assert!(xml.contains(r#"<navPoint id="navPoint-1" playOrder="1"><navLabel><text>Main Chapter</text></navLabel><content src="c01.xhtml"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-2" playOrder="2"><navLabel><text>Section 1.1</text></navLabel><content src="c02.xhtml"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-3" playOrder="3"><navLabel><text>Section 1.2</text></navLabel><content src="c03.xhtml"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-4" playOrder="4"><navLabel><text>Next Chapter</text></navLabel><content src="c04.xhtml"/></navPoint>"#));
+
+        assert_eq!(play_order, 4);
+    }
+
+    #[test]
+    fn test_contents_to_nav_point_with_references() {
+        let mock_epub = EpubBuilder::new(MetadataBuilder::title("With Refs").build()).add_content(
+            ContentBuilder::new(
+                "<body><h1>Chapter with Refs</h1></body>".as_bytes(),
+                ReferenceType::Text("Chapter with Refs".to_string()),
+            )
+            .add_content_reference(ContentReference::new("Ref A".to_string()))
+            .add_content_reference(ContentReference::new("Ref B".to_string()))
+            .build(),
+        );
+
+        let mut play_order = 0;
+
+        let result = contents_to_nav_point(&mut play_order, &mock_epub.0.contents.unwrap());
+        assert!(result.is_some());
+        let xml = cleaner(result.unwrap());
+
+        assert!(xml.contains(r#"<navPoint id="navPoint-1" playOrder="1"><navLabel><text>Chapter with Refs</text></navLabel><content src="c01.xhtml"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-1-1" playOrder="2"><navLabel><text>Ref A</text></navLabel><content src="c01.xhtml#id01"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-1-2" playOrder="3"><navLabel><text>Ref B</text></navLabel><content src="c01.xhtml#id02"/></navPoint>"#));
+        assert_eq!(play_order, 3);
+    }
+
+    #[test]
+    fn test_content_references_to_nav_point_nested() {
+        let content_references = vec![
+            ContentReference::new("Level 1 Ref 1".to_string()).add_child(
+                ContentReference::new("Level 2 Ref 1".to_string())
+                    .add_child(ContentReference::new("Level 3 Ref 1".to_string())),
+            ),
+            ContentReference::new("Level 1 Ref 2".to_string()),
+        ];
+
+        let current_xhtml = 5;
+        let mut play_order = 10;
+        let toc_index = "";
+        let mut link_number = 0;
+
+        let result = content_references_to_nav_point(
+            current_xhtml,
+            &mut play_order,
+            toc_index,
+            &content_references,
+            &mut link_number,
+        );
+
+        assert!(result.is_some());
+        let xml = cleaner(result.unwrap());
+
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1" playOrder="11"><navLabel><text>Level 1 Ref 1</text></navLabel><content src="c05.xhtml#id01"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1" playOrder="12"><navLabel><text>Level 2 Ref 1</text></navLabel><content src="c05.xhtml#id02"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1-1" playOrder="13"><navLabel><text>Level 3 Ref 1</text></navLabel><content src="c05.xhtml#id03"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-2" playOrder="14"><navLabel><text>Level 1 Ref 2</text></navLabel><content src="c05.xhtml#id04"/></navPoint>"#));
+        assert_eq!(play_order, 14);
+        assert_eq!(link_number, 4);
+    }
+}
