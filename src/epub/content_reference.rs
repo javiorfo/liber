@@ -1,7 +1,8 @@
 #[derive(Debug, Clone)]
 pub struct ContentReference {
-    pub title: String,
-    pub subcontent_references: Option<Vec<ContentReference>>,
+    pub(crate) title: String,
+    pub(crate) subcontent_references: Option<Vec<ContentReference>>,
+    id: Option<String>,
 }
 
 impl ContentReference {
@@ -9,7 +10,13 @@ impl ContentReference {
         Self {
             title: title.into(),
             subcontent_references: None,
+            id: None,
         }
+    }
+
+    pub fn id<S: Into<String>>(mut self, name: S) -> Self {
+        self.id = Some(name.into());
+        self
     }
 
     pub fn add_child(mut self, content_reference: ContentReference) -> Self {
@@ -36,6 +43,14 @@ impl ContentReference {
             .map_or(0, |subcontent_references| {
                 1 + subcontent_references[0].level()
             })
+    }
+
+    pub(crate) fn reference_name(&self, xhtml: &str, number: usize) -> String {
+        if let Some(ref id) = self.id {
+            format!("{xhtml}#{id}")
+        } else {
+            format!("{xhtml}#id{number:02}")
+        }
     }
 }
 

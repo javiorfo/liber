@@ -37,6 +37,10 @@ impl<'a> Epub<'a> {
         ))
     }
 
+    pub fn cover_image_as_manifest_xml(&self) -> Option<String> {
+        self.cover_image.as_ref()?.as_manifest_xml()
+    }
+
     fn level(&self) -> usize {
         if let Some(ref contents) = self.contents {
             let level_subcontents = contents

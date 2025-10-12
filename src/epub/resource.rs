@@ -71,6 +71,14 @@ impl<'a> Resource<'a> {
             }
         }
     }
+
+    pub(crate) fn as_manifest_xml(&self) -> Option<String> {
+        Some(format!(
+            r#"<item id="{filename}" href="{filename}" media-type="{media_type}"/>"#,
+            filename = self.filename().ok()?,
+            media_type = self.media_type()
+        ))
+    }
 }
 
 impl Display for Resource<'_> {

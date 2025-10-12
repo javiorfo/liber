@@ -61,8 +61,8 @@ where
             self.add_files(contents).await?;
         }
 
-        let mut file_number: usize = 0;
         if let Some(ref contents) = self.epub.contents {
+            let mut file_number: usize = 0;
             let mut file_contents: Vec<FileContent<String, String>> = Vec::new();
             for content in contents {
                 let res = content
@@ -74,7 +74,7 @@ where
             self.add_files(file_contents).await?;
         }
 
-        let mut content_opf = file_content::content_opf(&self.epub, file_number)?;
+        let mut content_opf = file_content::content_opf(&self.epub)?;
         content_opf.format(xml::async_format(content_opf.bytes.clone()).await?);
         self.add_file(content_opf).await?;
 

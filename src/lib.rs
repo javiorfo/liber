@@ -32,6 +32,9 @@ pub enum Error {
     #[error("Filename not found: {0}")]
     FilenameNotFound(String),
 
+    #[error("Content filename must end with '.xhtml'. Got '{0}'")]
+    ContentFilename(String),
+
     #[error("Error at position {0}: {1:?}")]
     XmlParser(u64, quick_xml::Error),
 }

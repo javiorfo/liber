@@ -1,4 +1,4 @@
-use crate::epub::{Content, ContentReference, Epub};
+use crate::epub::{Content, ContentReference, Epub, ReferenceType};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FileContent<F, B> {
@@ -77,10 +77,7 @@ impl ContentBuilder {
     }
 }
 
-pub fn content_opf(
-    epub: &Epub<'_>,
-    file_number: usize,
-) -> crate::Result<FileContent<String, String>> {
+pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     let metadata = &epub.metadata;
 
     let mut content_builder = ContentBuilder(String::from(
@@ -101,71 +98,55 @@ pub fn content_opf(
     content_builder.add(
         r#"</metadata><manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />"#,
     );
+
     content_builder.add_if_some(
         r#"<item id="style.css" href="style.css" media-type="text/css"/>"#,
         epub.stylesheet.as_ref(),
     );
 
-    if let Some(ref cover_image) = epub.cover_image {
-        let filename = cover_image.filename()?;
-        let media_type = cover_image.media_type();
-        content_builder.add(format!(
-            r#"<item id="{filename}" href="{filename}" media-type="{media_type}"/>"#
-        ));
-    }
+    content_builder.add_optional(epub.cover_image_as_manifest_xml());
 
     if let Some(ref resources) = epub.resources {
         for resource in resources {
-            let filename = resource.filename()?;
-            let media_type = resource.media_type();
-            content_builder.add(format!(
-                r#"<item id="{filename}" href="{filename}" media-type="{media_type}"/>"#,
-            ));
+            content_builder.add_optional(resource.as_manifest_xml());
         }
     }
 
-    if epub.contents.is_some() {
-        for i in 1..=file_number {
-            let filename = Content::filename(i);
-            content_builder.add(format!(
-                r#"<item id="{filename}" href="{filename}" media-type="application/xhtml+xml"/>"#,
+    recursive_content(
+        &mut 0,
+        &mut content_builder,
+        epub.contents.as_deref(),
+        &|cb, filename, _| {
+            cb.add(format!(
+                r#"<item id="{filename}" href="{filename}" media-type="application/xhtml+xml"/>"#
             ));
-        }
-    }
+        },
+    )?;
 
     content_builder.add(r#"</manifest><spine toc="ncx">"#);
 
-    if epub.contents.is_some() {
-        for i in 1..=file_number {
-            let filename = Content::filename(i);
-            content_builder.add(format!(r#"<itemref idref="{filename}"/>"#));
-        }
-    }
+    recursive_content(
+        &mut 0,
+        &mut content_builder,
+        epub.contents.as_deref(),
+        &|cb, filename, _| {
+            cb.add(format!(r#"<itemref idref="{filename}"/>"#));
+        },
+    )?;
 
     content_builder.add(r#"</spine><guide>"#);
 
-    if let Some(ref contents) = epub.contents {
-        let mut file_number = 1;
-        for con in contents {
-            let filename = Content::filename(file_number);
-            file_number += 1;
-            let (ref_type, title) = con.reference_type.type_and_title();
-            content_builder.add(format!(
+    recursive_content(
+        &mut 0,
+        &mut content_builder,
+        epub.contents.as_deref(),
+        &|cb, filename, reference_type| {
+            let (ref_type, title) = reference_type.type_and_title();
+            cb.add(format!(
                 r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,
             ));
-
-            if let Some(ref subcontents) = con.subcontents {
-                for subcon in subcontents {
-                    let filename = Content::filename(file_number);
-                    file_number += 1;
-                    let (ref_type, title) = subcon.reference_type.type_and_title();
-                    content_builder.add(format!(
-                        r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,
-                    ));
-                }
-            }
-        }
-    }
+        },
+    )?;
 
     content_builder.add(r#"</guide></package>"#);
 
@@ -173,6 +154,30 @@ pub fn content_opf(
         "OEBPS/content.opf".to_string(),
         content_builder.build(),
     ))
+}
+
+fn recursive_content<F>(
+    file_number: &mut usize,
+    cb: &mut ContentBuilder,
+    contents: Option<&[Content<'_>]>,
+    f: &F,
+) -> crate::Result
+where
+    F: Fn(&mut ContentBuilder, String, ReferenceType),
+{
+    if let Some(contents) = contents {
+        for con in contents {
+            *file_number += 1;
+            let filename = con.filename(*file_number);
+            if !filename.ends_with(".xhtml") {
+                return Err(crate::Error::ContentFilename(filename));
+            }
+            f(cb, filename, con.reference_type.clone());
+
+            recursive_content(file_number, cb, con.subcontents.as_deref(), f)?;
+        }
+    }
+    Ok(())
 }
 
 pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
@@ -208,29 +213,29 @@ fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Op
     for content in contents {
         *play_order += 1;
         let current_play_order = *play_order;
+        let filename = &content.filename(current_play_order);
 
         let nav_point = format!(
             r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}">
             <navLabel><text>{text}</text></navLabel>
-            <content src="{file}"/>{content_references}{subs}</navPoint>"#,
+            <content src="{filename}"/>{content_references}{subs}</navPoint>"#,
             text = content.title(),
-            file = Content::filename(current_play_order),
-            subs = content
-                .subcontents
-                .as_ref()
-                .and_then(|s| contents_to_nav_point(play_order, s))
-                .unwrap_or_default(),
             content_references = content
                 .content_references
                 .as_ref()
                 .and_then(|content_references| content_references_to_nav_point(
-                    current_play_order,
+                    (current_play_order, filename),
                     play_order,
                     "",
                     content_references,
                     &mut 0
                 ))
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            subs = content
+                .subcontents
+                .as_ref()
+                .and_then(|s| contents_to_nav_point(play_order, s))
+                .unwrap_or_default(),
         );
         result.push_str(&nav_point);
     }
@@ -239,7 +244,7 @@ fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Op
 }
 
 fn content_references_to_nav_point(
-    current_xhtml: usize,
+    current_xhtml: (usize, &str),
     play_order: &mut usize,
     toc_index: &str,
     content_references: &[ContentReference],
@@ -263,11 +268,12 @@ fn content_references_to_nav_point(
         let current_play_order = *play_order;
 
         let nav_point = format!(
-            r#"<navPoint id="navPoint-{current_xhtml}{current_toc}" playOrder="{current_play_order}">
+            r#"<navPoint id="navPoint-{xhtml_number}{current_toc}" playOrder="{current_play_order}">
             <navLabel><text>{text}</text></navLabel>
-            <content src="{xhtml}#id{current_link:02}"/>{subcontent_references}</navPoint>"#,
+            <content src="{src}"/>{subcontent_references}</navPoint>"#,
+            xhtml_number = current_xhtml.0,
             text = content_reference.title,
-            xhtml = Content::filename(current_xhtml),
+            src = content_reference.reference_name(current_xhtml.1, current_link),
             subcontent_references = content_reference
                 .subcontent_references
                 .as_ref()
@@ -295,7 +301,7 @@ mod tests {
     use super::{content_references_to_nav_point, contents_to_nav_point, toc_ncx};
 
     fn cleaner(xml: String) -> String {
-        xml.replace("\n", "").replace("            ", "")
+        xml.replace("\n", "").replace(" ".repeat(12).as_str(), "")
     }
 
     #[test]
@@ -433,7 +439,7 @@ mod tests {
             ContentReference::new("Level 1 Ref 2".to_string()),
         ];
 
-        let current_xhtml = 5;
+        let current_xhtml = (5, "c05.xhtml");
         let mut play_order = 10;
         let toc_index = "";
         let mut link_number = 0;

@@ -69,8 +69,8 @@ where
             self.add_files(contents)?;
         }
 
-        let mut file_number: usize = 0;
         if let Some(ref contents) = self.epub.contents {
+            let mut file_number: usize = 0;
             let mut file_contents: Vec<FileContent<String, String>> = Vec::new();
             for content in contents {
                 let res = content.file_content(&mut file_number, self.epub.stylesheet.is_some())?;
@@ -80,7 +80,7 @@ where
             self.add_files(file_contents)?;
         }
 
-        let mut content_opf = file_content::content_opf(&self.epub, file_number)?;
+        let mut content_opf = file_content::content_opf(&self.epub)?;
         content_opf.format(xml::format(&content_opf.bytes)?);
         self.add_file(content_opf)?;
 

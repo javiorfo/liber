@@ -54,6 +54,7 @@ pub struct Content<'a> {
     pub(crate) reference_type: ReferenceType,
     pub(crate) subcontents: Option<Vec<Content<'a>>>,
     pub(crate) content_references: Option<Vec<ContentReference>>,
+    filename: Option<String>,
 }
 
 impl<'a> Content<'a> {
@@ -63,6 +64,7 @@ impl<'a> Content<'a> {
             reference_type,
             subcontents: None,
             content_references: None,
+            filename: None,
         }
     }
 
@@ -91,7 +93,7 @@ impl<'a> Content<'a> {
         add_stylesheet: bool,
     ) -> crate::Result<Vec<FileContent<String, String>>> {
         *number += 1;
-        let filepath = format!("OEBPS/{}", Self::filename(*number));
+        let filepath = format!("OEBPS/{}", self.filename(*number));
         let mut file_contents = Vec::new();
 
         let xhtml_content =
@@ -115,7 +117,7 @@ impl<'a> Content<'a> {
         add_stylesheet: bool,
     ) -> crate::Result<Vec<FileContent<String, String>>> {
         *number += 1;
-        let filepath = format!("OEBPS/{}", Self::filename(*number));
+        let filepath = format!("OEBPS/{}", self.filename(*number));
         let mut file_contents = Vec::new();
 
         let xhtml_content =
@@ -132,8 +134,12 @@ impl<'a> Content<'a> {
         Ok(file_contents)
     }
 
-    pub(crate) fn filename(number: usize) -> String {
-        format!("c{number:02}.xhtml")
+    pub(crate) fn filename(&self, number: usize) -> String {
+        if let Some(ref filename) = self.filename {
+            filename.clone()
+        } else {
+            format!("c{number:02}.xhtml")
+        }
     }
 
     pub(crate) fn title(&self) -> &str {
@@ -202,6 +208,11 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
+    pub fn filename<S: Into<String>>(mut self, name: S) -> Self {
+        self.0.filename = Some(name.into());
+        self
+    }
+
     pub fn build(self) -> Content<'a> {
         self.0
     }
@@ -266,6 +277,7 @@ mod tests {
 
         let content = ContentBuilder::new(b"", ReferenceType::Text("T".to_string()))
             .add_content_references(refs)
+            .filename("filename1")
             .build();
 
         assert_eq!(content.content_references.unwrap().len(), 2);
