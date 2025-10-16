@@ -112,39 +112,35 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
         }
     }
 
-    recursive_content(
+    create_content_chain(
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|cb, filename, _| {
-            cb.add(format!(
+        &|filename, _| {
+            format!(
                 r#"<item id="{filename}" href="{filename}" media-type="application/xhtml+xml"/>"#
-            ));
+            )
         },
     )?;
 
     content_builder.add(r#"</manifest><spine toc="ncx">"#);
 
-    recursive_content(
+    create_content_chain(
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|cb, filename, _| {
-            cb.add(format!(r#"<itemref idref="{filename}"/>"#));
-        },
+        &|filename, _| format!(r#"<itemref idref="{filename}"/>"#),
     )?;
 
     content_builder.add(r#"</spine><guide>"#);
 
-    recursive_content(
+    create_content_chain(
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|cb, filename, reference_type| {
+        &|filename, reference_type| {
             let (ref_type, title) = reference_type.type_and_title();
-            cb.add(format!(
-                r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,
-            ));
+            format!(r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,)
         },
     )?;
 
@@ -156,14 +152,14 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
     ))
 }
 
-fn recursive_content<F>(
+fn create_content_chain<F>(
     file_number: &mut usize,
     cb: &mut ContentBuilder,
     contents: Option<&[Content<'_>]>,
     f: &F,
 ) -> crate::Result
 where
-    F: Fn(&mut ContentBuilder, String, ReferenceType),
+    F: Fn(String, &ReferenceType) -> String,
 {
     if let Some(contents) = contents {
         for con in contents {
@@ -172,9 +168,10 @@ where
             if !filename.ends_with(".xhtml") {
                 return Err(crate::Error::ContentFilename(filename));
             }
-            f(cb, filename, con.reference_type.clone());
 
-            recursive_content(file_number, cb, con.subcontents.as_deref(), f)?;
+            cb.add(f(filename, &con.reference_type));
+
+            create_content_chain(file_number, cb, con.subcontents.as_deref(), f)?;
         }
     }
     Ok(())
@@ -412,8 +409,10 @@ mod tests {
                 "<body><h1>Chapter with Refs</h1></body>".as_bytes(),
                 ReferenceType::Text("Chapter with Refs".to_string()),
             )
-            .add_content_reference(ContentReference::new("Ref A".to_string()))
-            .add_content_reference(ContentReference::new("Ref B".to_string()))
+            .add_content_references(vec![
+                ContentReference::new("Ref A"),
+                ContentReference::new("Ref B"),
+            ])
             .build(),
         );
 
@@ -432,22 +431,20 @@ mod tests {
     #[test]
     fn test_content_references_to_nav_point_nested() {
         let content_references = vec![
-            ContentReference::new("Level 1 Ref 1".to_string()).add_child(
-                ContentReference::new("Level 2 Ref 1".to_string())
-                    .add_child(ContentReference::new("Level 3 Ref 1".to_string())),
+            ContentReference::new("Level 1 Ref 1").add_child(
+                ContentReference::new("Level 2 Ref 1")
+                    .add_child(ContentReference::new("Level 3 Ref 1")),
             ),
-            ContentReference::new("Level 1 Ref 2".to_string()),
+            ContentReference::new("Level 1 Ref 2").id("four"),
         ];
 
-        let current_xhtml = (5, "c05.xhtml");
         let mut play_order = 10;
-        let toc_index = "";
         let mut link_number = 0;
 
         let result = content_references_to_nav_point(
-            current_xhtml,
+            (5, "some.xhtml"),
             &mut play_order,
-            toc_index,
+            "",
             &content_references,
             &mut link_number,
         );
@@ -455,10 +452,10 @@ mod tests {
         assert!(result.is_some());
         let xml = cleaner(result.unwrap());
 
-        assert!(xml.contains(r#"<navPoint id="navPoint-5-1" playOrder="11"><navLabel><text>Level 1 Ref 1</text></navLabel><content src="c05.xhtml#id01"/>"#));
-        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1" playOrder="12"><navLabel><text>Level 2 Ref 1</text></navLabel><content src="c05.xhtml#id02"/>"#));
-        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1-1" playOrder="13"><navLabel><text>Level 3 Ref 1</text></navLabel><content src="c05.xhtml#id03"/></navPoint>"#));
-        assert!(xml.contains(r#"<navPoint id="navPoint-5-2" playOrder="14"><navLabel><text>Level 1 Ref 2</text></navLabel><content src="c05.xhtml#id04"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1" playOrder="11"><navLabel><text>Level 1 Ref 1</text></navLabel><content src="some.xhtml#id01"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1" playOrder="12"><navLabel><text>Level 2 Ref 1</text></navLabel><content src="some.xhtml#id02"/>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1-1" playOrder="13"><navLabel><text>Level 3 Ref 1</text></navLabel><content src="some.xhtml#id03"/></navPoint>"#));
+        assert!(xml.contains(r#"<navPoint id="navPoint-5-2" playOrder="14"><navLabel><text>Level 1 Ref 2</text></navLabel><content src="some.xhtml#four"/></navPoint>"#));
         assert_eq!(play_order, 14);
         assert_eq!(link_number, 4);
     }

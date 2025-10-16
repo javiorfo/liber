@@ -29,7 +29,7 @@ pub struct EpubFile<'a, W> {
 
 impl<'a, W> EpubFile<'a, W>
 where
-    W: Write,
+    W: Write + Send,
 {
     pub fn new(epub: Epub<'a>, writer: W, compression: ZipCompression) -> EpubFile<'a, W> {
         let compression = match compression {

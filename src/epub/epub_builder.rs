@@ -117,15 +117,21 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
-    pub fn create<W: Write>(self, writer: &mut W) -> crate::Result {
+    pub fn create<W>(self, writer: &mut W) -> crate::Result
+    where
+        W: Write + Send,
+    {
         self.create_with_compression(writer, ZipCompression::Stored)
     }
 
-    pub fn create_with_compression<W: Write>(
+    pub fn create_with_compression<W>(
         self,
         writer: &mut W,
         compression: ZipCompression,
-    ) -> crate::Result {
+    ) -> crate::Result
+    where
+        W: Write + Send,
+    {
         EpubFile::new(self.0, writer, compression).create()
     }
 
