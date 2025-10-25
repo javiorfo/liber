@@ -13,10 +13,6 @@ keywords = ["epub", "epub2", "epub-generator", "epub-creator", "epub-async"]
 name = "liber"
 path = "src/lib.rs"
 
-[features]
-default = []
-async = ["async_zip", "tokio", "futures"]
-
 [dependencies]
 chrono = { version = "0.4.42", features = ["std"] }
 quick-xml = "0.38.3"
@@ -24,8 +20,20 @@ thiserror = "2.0.12"
 uuid = { version = "1.18.1", features = ["v4"] }
 zip = "5.1.1"
 async_zip = { version = "0.0.18", features = ["tokio", "deflate"], optional = true }
-tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros", "fs", "io-util", "io-std"], optional = true }
+tokio = { version = "1.47.1", features = ["fs", "io-util", "io-std"], optional = true }
 futures = { version = "0.3.31", optional = true }
 
 [dev-dependencies]
 tempfile = "3.23.0"
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros"] }
+
+[features]
+default = []
+async = ["async_zip", "tokio", "futures"]
+
+[[example]]
+name = "async"
+required-features = ["async"]
+
+[[example]]
+name = "basic"
