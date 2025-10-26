@@ -1,11 +1,22 @@
+/// Represents a single entry in a hierarchical list of references (e.g., a Table of Contents entry).
+///
+/// This structure links a title to a specific location (via `id`) and supports nested sub-references.
 #[derive(Debug, Clone)]
 pub struct ContentReference {
+    /// The display title for this reference entry (e.g., "Section 1.1: The Beginning").
     pub(crate) title: String,
+    /// An optional vector of children, creating nested sub-entries (e.g., sections within a chapter).
     pub(crate) subcontent_references: Option<Vec<ContentReference>>,
+    /// An optional, user-defined ID corresponding to an anchor within a content file.
+    /// If `None`, a sequential ID will be generated when building the output structure.
     id: Option<String>,
 }
 
 impl ContentReference {
+    /// Creates a new `ContentReference` with the mandatory display **title**.
+    ///
+    /// # Arguments
+    /// * `title`: The string that will be displayed for this entry in the navigation structure.
     pub fn new<S: Into<String>>(title: S) -> Self {
         Self {
             title: title.into(),
@@ -14,11 +25,17 @@ impl ContentReference {
         }
     }
 
+    /// Sets the **anchor ID** (the target fragment, e.g., `#section-1`) for this reference.
+    ///
+    /// This is a fluent method, returning `Self`.
     pub fn id<S: Into<String>>(mut self, name: S) -> Self {
         self.id = Some(name.into());
         self
     }
 
+    /// Adds a single [`ContentReference`] as a nested **child** (sub-entry).
+    ///
+    /// This is a fluent method, returning `Self`.
     pub fn add_child(mut self, content_reference: ContentReference) -> Self {
         if let Some(ref mut subcontent_references) = self.subcontent_references {
             subcontent_references.push(content_reference);
@@ -28,6 +45,9 @@ impl ContentReference {
         self
     }
 
+    /// Adds a vector of [`ContentReference`] structs as nested **children**.
+    ///
+    /// This is a fluent method, returning `Self`.
     pub fn add_children(mut self, content_references: Vec<ContentReference>) -> Self {
         if let Some(ref mut subcontent_references) = self.subcontent_references {
             subcontent_references.extend(content_references);
@@ -37,6 +57,9 @@ impl ContentReference {
         self
     }
 
+    /// Recursively calculates the maximum nesting depth of subcontent references.
+    ///
+    /// Returns `0` for leaf nodes.
     pub(crate) fn level(&self) -> usize {
         self.subcontent_references
             .as_ref()
@@ -45,6 +68,13 @@ impl ContentReference {
             })
     }
 
+    /// Generates the full file-path anchor string for this reference.
+    ///
+    /// It combines the provided XHTML filename with either the custom `id` or a sequential one.
+    ///
+    /// # Arguments
+    /// * `xhtml`: The base filename (e.g., `c01.xhtml`) this reference points to.
+    /// * `number`: A sequential number used for generating a default anchor ID if `self.id` is `None`.
     pub(crate) fn reference_name(&self, xhtml: &str, number: usize) -> String {
         if let Some(ref id) = self.id {
             format!("{xhtml}#{id}")

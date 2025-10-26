@@ -3,28 +3,52 @@ use crate::{
     output::{file_content::FileContent, xml},
 };
 
+/// Defines the **semantically meaningful type** and **display title** for a piece of content.
+///
+/// Each variant carries a `String` which serves as the **display title** (e.g., "Chapter 1", "Glossary").
+/// The variant name itself maps to a machine-readable type string (e.g., `toc`, `foreword`).
 #[derive(Debug, Clone)]
 pub enum ReferenceType {
+    /// Content preceding the main text, like a thank you section.
     Acknowledgements(String),
+    /// A list of sources or works consulted.
     Bibliography(String),
+    /// A page containing publishing information and details.
     Colophon(String),
+    /// The copyright notice page.
     Copyright(String),
+    /// The cover image or page content.
     Cover(String),
+    /// A dedication page.
     Dedication(String),
+    /// A short quotation at the beginning of a book or chapter.
     Epigraph(String),
+    /// A preliminary introduction to the book, usually written by someone other than the author.
     Foreword(String),
+    /// A list of terms and their definitions.
     Glossary(String),
+    /// A list of names, subjects, etc., with references to where they occur.
     Index(String),
+    /// List of Illustrations (LOI).
     Loi(String),
+    /// List of Tables (LOT).
     Lot(String),
+    /// Section for end-notes or footnotes.
     Notes(String),
+    /// An introductory statement or essay, usually written by the author.
     Preface(String),
+    /// The main, continuous textual content of the book.
     Text(String),
+    /// The dedicated title page content.
     TitlePage(String),
+    /// The Table of Contents (TOC).
     Toc(String),
 }
 
 impl ReferenceType {
+    /// Retrieves the tuple containing the machine-readable **type string** and the **display title**.
+    ///
+    /// The type string is used for standard structural semantics in formats like EPUB.
     pub(crate) fn type_and_title(&self) -> (&str, &str) {
         match self {
             Self::Acknowledgements(s) => ("acknowledgements", s),
@@ -48,16 +72,26 @@ impl ReferenceType {
     }
 }
 
+/// Represents a single hierarchical content unit within a document structure.
+///
+/// This structure can hold raw XHTML body bytes, be nested via `subcontents`,
+/// and reference other content units via `content_references`.
 #[derive(Debug, Clone)]
 pub struct Content<'a> {
+    /// A byte slice containing the raw body of the content (assumed to be XHTML fragments).
     body: &'a [u8],
+    /// The semantic type and display title of this content unit.
     pub(crate) reference_type: ReferenceType,
+    /// An optional vector of children, enabling hierarchical (chapter/section) nesting.
     pub(crate) subcontents: Option<Vec<Content<'a>>>,
+    /// An optional vector of references to other content units (e.g., links in a TOC).
     pub(crate) content_references: Option<Vec<ContentReference>>,
+    /// An optional, user-defined filename. If `None`, a sequential name is generated.
     filename: Option<String>,
 }
 
 impl<'a> Content<'a> {
+    /// Creates a new `Content` instance with mandatory fields and uninitialized optional fields.
     fn new(body: &'a [u8], reference_type: ReferenceType) -> Self {
         Self {
             body,
@@ -68,12 +102,18 @@ impl<'a> Content<'a> {
         }
     }
 
+    /// Recursively calculates the maximum nesting depth of **subcontents**.
+    ///
+    /// Returns `0` for leaf nodes.
     pub(crate) fn level(&self) -> usize {
         self.subcontents
             .as_ref()
             .map_or(0, |subcontents| 1 + subcontents[0].level())
     }
 
+    /// Recursively calculates the maximum nesting depth considering both **subcontents** and **content references**.
+    ///
+    /// This is typically used for determining the necessary depth of the final document structure (e.g., NCX/TOC).
     pub(crate) fn level_reference_content(&self) -> usize {
         let content_references_level = self
             .content_references
@@ -87,6 +127,16 @@ impl<'a> Content<'a> {
         content_references_level.max(subcontents_cont_ref_level)
     }
 
+    /// Recursively converts this content unit and all subcontents into a vector of [`FileContent`] structs.
+    ///
+    /// This handles serialization to final XHTML files and assigns sequential filenames.
+    ///
+    /// # Arguments
+    /// * `number`: A mutable counter to generate sequential filenames.
+    /// * `add_stylesheet`: Flag to include a CSS link in the generated XHTML header.
+    ///
+    /// # Errors
+    /// Returns a [`crate::Result`] if the body is not valid UTF-8 or if XML formatting fails.
     pub(crate) fn file_content(
         &self,
         number: &mut usize,
@@ -110,6 +160,9 @@ impl<'a> Content<'a> {
         Ok(file_contents)
     }
 
+    /// Asynchronously converts content and subcontents into a vector of [`FileContent`] structs.
+    ///
+    /// This method requires the **`async` feature** to be enabled.
     #[cfg(feature = "async")]
     pub(crate) async fn async_file_content(
         &self,
@@ -134,6 +187,9 @@ impl<'a> Content<'a> {
         Ok(file_contents)
     }
 
+    /// Gets the final output filename for this content unit.
+    ///
+    /// If `filename` is set, it uses that; otherwise, it formats a sequential name like `c01.xhtml`.
     pub(crate) fn filename(&self, number: usize) -> String {
         if let Some(ref filename) = self.filename {
             filename.clone()
@@ -142,10 +198,12 @@ impl<'a> Content<'a> {
         }
     }
 
+    /// Gets the display title of this content unit from its `ReferenceType`.
     pub(crate) fn title(&self) -> &str {
         self.reference_type.type_and_title().1
     }
 
+    /// Wraps the content body and necessary boilerplate into a complete XHTML 1.1 document string.
     fn xhtml(&self, text: &str, add_stylesheet: bool) -> String {
         let stylesheet = if add_stylesheet {
             r#"<link href="style.css" rel="stylesheet" type="text/css"/>"#
@@ -163,15 +221,20 @@ impl<'a> Content<'a> {
     }
 }
 
+/// A builder for creating and configuring hierarchical [`Content`] structures.
+///
+/// This provides a **fluent interface** to manage children and references.
 #[derive(Debug)]
 pub struct ContentBuilder<'a>(Content<'a>);
 
 impl<'a> ContentBuilder<'a> {
+    /// Creates a new builder instance, initializing the content with the raw body and required type.
     #[must_use]
     pub fn new(body: &'a [u8], reference_type: ReferenceType) -> Self {
         Self(Content::new(body, reference_type))
     }
 
+    /// Adds a single [`Content`] unit as a **child** (subcontent) of the current unit.
     pub fn add_child(mut self, content: Content<'a>) -> Self {
         if let Some(ref mut subcontents) = self.0.subcontents {
             subcontents.push(content);
@@ -181,6 +244,7 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
+    /// Adds a vector of [`Content`] units as **children** (subcontents) of the current unit.
     pub fn add_children(mut self, contents: Vec<Content<'a>>) -> Self {
         if let Some(ref mut subcontents) = self.0.subcontents {
             subcontents.extend(contents);
@@ -190,6 +254,9 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
+    /// Adds a single [`ContentReference`] to the current unit's reference list.
+    ///
+    /// A content reference usually points to another content unit in the document tree.
     pub fn add_content_reference(mut self, content_reference: ContentReference) -> Self {
         if let Some(ref mut content_references) = self.0.content_references {
             content_references.push(content_reference);
@@ -199,6 +266,7 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
+    /// Adds a vector of [`ContentReference`] structs to the current unit's reference list.
     pub fn add_content_references(mut self, content_references: Vec<ContentReference>) -> Self {
         if let Some(ref mut self_content_references) = self.0.content_references {
             self_content_references.extend(content_references);
@@ -208,11 +276,13 @@ impl<'a> ContentBuilder<'a> {
         self
     }
 
+    /// Sets a custom **filename** for the final output file corresponding to this content unit.
     pub fn filename<S: Into<String>>(mut self, name: S) -> Self {
         self.0.filename = Some(name.into());
         self
     }
 
+    /// Consumes the builder and returns the final [`Content`] instance.
     pub fn build(self) -> Content<'a> {
         self.0
     }

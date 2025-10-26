@@ -1,8 +1,14 @@
 use crate::epub::{Content, ContentReference, Epub, ReferenceType};
 
+/// A generic struct representing a file within the EPUB archive.
+///
+/// It holds the **path** of the file and its **content bytes**. The type
+/// parameters allow flexibility for the path (`F`) and the content (`B`).
 #[derive(Debug, PartialEq, Eq)]
 pub struct FileContent<F, B> {
+    /// The path of the file, e.g., "OEBPS/content.opf".
     pub filepath: F,
+    /// The binary or text content of the file.
     pub bytes: B,
 }
 
@@ -11,15 +17,29 @@ where
     F: Into<String>,
     B: AsRef<[u8]>,
 {
+    /// Creates a new `FileContent` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `filepath`: The path of the file. Must be convertible to `String`.
+    /// * `bytes`: The content of the file. Must be convertible to a byte slice.
     pub fn new(filepath: F, bytes: B) -> FileContent<F, B> {
         Self { filepath, bytes }
     }
 
+    /// Replaces the current content bytes with new ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes`: The new content bytes.
     pub fn format(&mut self, bytes: B) {
         self.bytes = bytes;
     }
 }
 
+/// Creates a `FileContent` for the mandatory EPUB **container.xml** file.
+///
+/// This file specifies the location of the OPF package document.
 pub fn container<'a>() -> FileContent<&'a str, &'a [u8]> {
     FileContent::new(
         "META-INF/container.xml",
@@ -34,10 +54,17 @@ pub fn container<'a>() -> FileContent<&'a str, &'a [u8]> {
     )
 }
 
+/// Creates a `FileContent` for the mandatory EPUB **mimetype** file.
+///
+/// This file *must* be the first file in the EPUB ZIP archive and must not be compressed.
 pub fn mimetype<'a>() -> FileContent<&'a str, &'a [u8]> {
     FileContent::new("mimetype", b"application/epub+zip")
 }
 
+/// Creates a `FileContent` for the **com.apple.ibooks.display-options.xml** file.
+///
+/// This is a non-mandatory file used by iBooks to specify display options,
+/// in this case, enabling specified fonts.
 pub fn display_options<'a>() -> FileContent<&'a str, &'a [u8]> {
     FileContent::new(
         "META-INF/com.apple.ibooks.display-options.xml",
@@ -52,31 +79,69 @@ pub fn display_options<'a>() -> FileContent<&'a str, &'a [u8]> {
     )
 }
 
+/// A helper struct for efficiently building the content of XML files as a `String`.
+///
+/// It wraps a single `String` and provides methods for appending various values,
+/// including conditional and optional strings, which is useful for generating XML dynamically.
 #[derive(Debug)]
 pub struct ContentBuilder(String);
 
 impl ContentBuilder {
+    /// Appends a string-like value to the builder's content.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S`: Any type that can be converted into a `String` (e.g., `&str` or `String`).
     pub fn add<S: Into<String>>(&mut self, value: S) {
         self.0.push_str(&value.into());
     }
 
+    /// Appends an optional string-like value to the builder's content if it is `Some`.
+    ///
+    /// If `value` is `None`, nothing is appended.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S`: Any type that can be converted into a `String`.
     pub fn add_optional<S: Into<String>>(&mut self, value: Option<S>) {
         if let Some(value) = value {
             self.0.push_str(&value.into());
         }
     }
 
+    /// Appends a specific string-like value only if the condition-providing `Option` is `Some`.
+    ///
+    /// This is useful for including fixed XML tags only when a related field exists.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `S`: Any type that can be converted into a `String`.
+    /// * `T`: The inner type of the condition `Option`.
     pub fn add_if_some<T, S: Into<String>>(&mut self, value: S, some: Option<T>) {
         if some.is_some() {
             self.0.push_str(&value.into());
         }
     }
 
+    /// Consumes the builder and returns the assembled content as a `String`.
     pub fn build(self) -> String {
         self.0
     }
 }
 
+/// Generates the **content.opf** (Open Packaging Format) file for the EPUB.
+///
+/// This file is the spine of the EPUB, containing the full manifest of all
+/// files, the linear reading order (`spine`), and the essential metadata.
+///
+/// # Arguments
+///
+/// * `epub`: A reference to the main `Epub` structure containing all book data.
+///
+/// # Returns
+///
+/// Returns a `crate::Result` wrapping a `FileContent<String, String>` for
+/// "OEBPS/content.opf" with the generated XML content.
 pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     let metadata = &epub.metadata;
 
@@ -152,6 +217,22 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
     ))
 }
 
+/// A recursive private helper function used by `content_opf` to traverse the
+/// hierarchical content structure (`epub.contents`) and generate repeated XML
+/// elements (manifest items, spine references, or guide references).
+///
+/// # Arguments
+///
+/// * `file_number`: A mutable counter to assign unique filenames/IDs to content documents.
+/// * `cb`: A mutable reference to the `ContentBuilder` to append the generated XML.
+/// * `contents`: An `Option` containing a slice of the current level of `Content` to process.
+/// * `f`: A closure that takes the generated filename and its `ReferenceType` and
+///   returns the specific XML element string to be added (e.g., a `<item>` tag).
+///
+/// # Returns
+///
+/// Returns `crate::Result<()>`, signaling an error if a content filename is invalid
+/// (not ending with `.xhtml`).
 fn create_content_chain<F>(
     file_number: &mut usize,
     cb: &mut ContentBuilder,
@@ -177,6 +258,19 @@ where
     Ok(())
 }
 
+/// Generates the **toc.ncx** (Navigation Control File for XML) file for the EPUB.
+///
+/// This file defines the EPUB's table of contents, including the hierarchical
+/// structure of the book's sections and subsections (`navMap`).
+///
+/// # Arguments
+///
+/// * `epub`: A reference to the main `Epub` structure.
+///
+/// # Returns
+///
+/// Returns a `crate::Result` wrapping a `FileContent<String, String>` for
+/// "OEBPS/toc.ncx" with the generated XML content.
 pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     let metadata = &epub.metadata;
 
@@ -205,6 +299,20 @@ pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     ))
 }
 
+/// A recursive private helper function to generate the `navPoint` elements for the `toc.ncx` file.
+///
+/// It traverses the hierarchical content structure and creates the corresponding
+/// nested `<navPoint>` XML tags for the table of contents.
+///
+/// # Arguments
+///
+/// * `play_order`: A mutable counter used to generate the unique sequential `playOrder` attribute.
+/// * `contents`: A slice of `Content` items at the current hierarchy level.
+///
+/// # Returns
+///
+/// Returns an `Option<String>`: `Some(String)` containing the generated XML for the
+/// navigation points, or `None` if the input slice is empty.
 fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Option<String> {
     let mut result = String::new();
     for content in contents {
@@ -240,6 +348,24 @@ fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Op
     Some(result)
 }
 
+/// A recursive private helper function to generate nested `navPoint` elements
+/// for **content references** (i.e., internal links/subheadings within a single XHTML file).
+///
+/// This function is called from `contents_to_nav_point` to handle the deeper
+/// hierarchy of links within a specific file.
+///
+/// # Arguments
+///
+/// * `current_xhtml`: A tuple containing the unique index and filename of the current XHTML file.
+/// * `play_order`: A mutable counter to continue the sequential `playOrder` across all entries.
+/// * `toc_index`: A string representing the current hierarchical index path (e.g., "1-2-").
+/// * `content_references`: A slice of `ContentReference` items to process.
+/// * `link_number`: A mutable counter to generate unique link IDs/names within the file.
+///
+/// # Returns
+///
+/// Returns an `Option<String>`: `Some(String)` containing the generated XML for the
+/// reference navigation points, or `None` if the input slice is empty.
 fn content_references_to_nav_point(
     current_xhtml: (usize, &str),
     play_order: &mut usize,

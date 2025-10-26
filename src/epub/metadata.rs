@@ -3,20 +3,35 @@ use std::fmt::Display;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+/// Core structure holding all necessary descriptive information about a resource (e.g., a book).
+///
+/// Use the [`MetadataBuilder`] to create instances of this struct.
 #[derive(Debug, Clone)]
 pub struct Metadata {
+    /// The primary title of the resource.
     pub title: String,
+    /// The primary language of the resource's content.
     pub language: Language,
+    /// A unique identifier for the resource.
     pub identifier: Identifier,
+    /// The primary person or entity responsible for the content's creation.
     pub creator: Option<String>,
+    /// A secondary person or entity who has made contributions (e.g., translator, editor).
     pub contributor: Option<String>,
+    /// The entity responsible for making the resource available.
     pub publisher: Option<String>,
+    /// The date of the resource's publication or creation. Defaults to the current UTC time when created via `new()`.
     pub date: Option<DateTime<Utc>>,
+    /// Keywords or phrases describing the content of the resource.
     pub subject: Option<String>,
+    /// A short summary or description of the resource's content.
     pub description: Option<String>,
 }
 
 impl Metadata {
+    /// Creates a new `Metadata` instance with mandatory fields and default values for optional fields.
+    ///
+    /// The `date` field is set to the current UTC time.
     fn new<S: Into<String>>(title: S, language: Language, identifier: Identifier) -> Self {
         Self {
             title: title.into(),
@@ -31,10 +46,14 @@ impl Metadata {
         }
     }
 
+    /// Generates the XML representation for the **title** element.
     pub(crate) fn title_as_metadata_xml(&self) -> String {
         format!("<dc:title>{}</dc:title>", self.title)
     }
 
+    /// Generates the XML representation for the **creator** element, including the `opf:role="aut"` attribute.
+    ///
+    /// Returns `None` if the creator is not set.
     pub(crate) fn creator_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:creator opf:role="aut">{}</dc:creator>"#,
@@ -42,6 +61,9 @@ impl Metadata {
         ))
     }
 
+    /// Generates the XML representation for the **contributor** element, including the `opf:role="trl"` attribute.
+    ///
+    /// Returns `None` if the contributor is not set.
     pub(crate) fn contributor_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:contributor opf:role="trl">{}</dc:contributor>"#,
@@ -49,6 +71,9 @@ impl Metadata {
         ))
     }
 
+    /// Generates the XML representation for the **publisher** element.
+    ///
+    /// Returns `None` if the publisher is not set.
     pub(crate) fn publisher_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             "<dc:publisher>{}</dc:publisher>",
@@ -56,6 +81,9 @@ impl Metadata {
         ))
     }
 
+    /// Generates the XML representation for the **date** element, formatted as YYYY-MM-DD.
+    ///
+    /// Returns `None` if the date is not set.
     pub(crate) fn date_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<dc:date opf:event="publication">{}</dc:date>"#,
@@ -63,6 +91,9 @@ impl Metadata {
         ))
     }
 
+    /// Generates the XML representation for the **subject** element.
+    ///
+    /// Returns `None` if the subject is not set.
     pub(crate) fn subject_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             "<dc:subject>{}</dc:subject>",
@@ -70,6 +101,9 @@ impl Metadata {
         ))
     }
 
+    /// Generates the XML representation for the **description** element.
+    ///
+    /// Returns `None` if the description is not set.
     pub(crate) fn description_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             "<dc:description>{}</dc:description>",
@@ -78,10 +112,14 @@ impl Metadata {
     }
 }
 
+/// A builder for easily constructing [`Metadata`] structs.
+///
+/// This uses a **fluent interface** to set optional fields before finalizing the structure with `build()`.
 #[derive(Debug)]
 pub struct MetadataBuilder(Metadata);
 
 impl MetadataBuilder {
+    /// Starts the builder by setting the **mandatory title** and initializing with default language and identifier (a new UUID).
     #[must_use]
     pub fn title<S: Into<String>>(title: S) -> Self {
         Self(Metadata::new(
@@ -91,51 +129,61 @@ impl MetadataBuilder {
         ))
     }
 
+    /// Sets the primary **language** of the resource.
     pub fn language(mut self, language: Language) -> Self {
         self.0.language = language;
         self
     }
 
+    /// Sets the unique **identifier** for the resource (e.g., UUID or ISBN).
     pub fn identifier(mut self, identifier: Identifier) -> Self {
         self.0.identifier = identifier;
         self
     }
 
+    /// Sets the **creator** of the resource.
     pub fn creator<S: Into<String>>(mut self, creator: S) -> Self {
         self.0.creator = Some(creator.into());
         self
     }
 
+    /// Sets the **contributor** of the resource.
     pub fn contributor<S: Into<String>>(mut self, contributor: S) -> Self {
         self.0.contributor = Some(contributor.into());
         self
     }
 
+    /// Sets the **publisher** of the resource.
     pub fn publisher<S: Into<String>>(mut self, publisher: S) -> Self {
         self.0.publisher = Some(publisher.into());
         self
     }
 
+    /// Sets the publication **date** using a specific `DateTime<Utc>`.
     pub fn date(mut self, date: DateTime<Utc>) -> Self {
         self.0.date = Some(date);
         self
     }
 
+    /// Sets the **subject** (keywords/tags) for the resource.
     pub fn subject<S: Into<String>>(mut self, subject: S) -> Self {
         self.0.subject = Some(subject.into());
         self
     }
 
+    /// Sets the **description** (summary) for the resource.
     pub fn description<S: Into<String>>(mut self, description: S) -> Self {
         self.0.description = Some(description.into());
         self
     }
 
+    /// Consumes the builder and returns the final [`Metadata`] instance.
     pub fn build(self) -> Metadata {
         self.0
     }
 }
 
+/// Represents the primary language of the resource content, using its corresponding **ISO 639-1** code.
 #[derive(Debug, Clone, Default)]
 pub enum Language {
     Arabic,
@@ -188,11 +236,15 @@ pub enum Language {
 }
 
 impl Language {
+    /// Generates the XML representation for the **language** element.
+    ///
+    /// The language code (e.g., `en`, `fr`) is used as the content.
     pub fn as_metadata_xml(&self) -> String {
         format!("<dc:language>{}</dc:language>", self.as_ref())
     }
 }
 
+/// Helper implementation to get the two-letter ISO 639-1 code for the language.
 impl AsRef<str> for Language {
     fn as_ref(&self) -> &str {
         match self {
@@ -246,13 +298,19 @@ impl AsRef<str> for Language {
     }
 }
 
+/// Represents a unique identifier for the resource, typically a UUID or ISBN.
 #[derive(Debug, Clone)]
 pub enum Identifier {
+    /// A standard **UUID** (Universally Unique Identifier).
     UUID(String),
+    /// An **ISBN** (International Standard Book Number).
     ISBN(String),
 }
 
 impl Identifier {
+    /// Generates the XML representation for the **identifier** element.
+    ///
+    /// The scheme (`UUID` or `ISBN`) and the URN value are included.
     pub(crate) fn as_metadata_xml(&self) -> String {
         format!(
             r#"<dc:identifier id="BookId" opf:scheme="{}">{}</dc:identifier>"#,
@@ -261,6 +319,7 @@ impl Identifier {
         )
     }
 
+    /// Generates the XML representation for the **TOC (Table of Contents)** metadata, typically used for DTB UID.
     pub(crate) fn as_toc_xml(&self) -> String {
         format!(
             r#"<meta name="dtb:uid" content="{}"/>"#,
@@ -269,6 +328,7 @@ impl Identifier {
     }
 }
 
+/// Converts the identifier into its URN (Uniform Resource Name) format, e.g., `urn:uuid:...` or `urn:isbn:...`.
 impl From<&Identifier> for String {
     fn from(value: &Identifier) -> Self {
         match value {
@@ -279,11 +339,13 @@ impl From<&Identifier> for String {
 }
 
 impl Default for Identifier {
+    /// Generates a new random **UUID** as the default identifier.
     fn default() -> Self {
         Identifier::UUID(Uuid::new_v4().to_string())
     }
 }
 
+/// Displays the identifier scheme (`UUID` or `ISBN`).
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -2,14 +2,22 @@ use std::{fmt::Display, fs, path::Path};
 
 use crate::output::file_content::FileContent;
 
+/// Represents the common image file types supported for inclusion as resources.
+///
+/// This enum automatically maps to the correct **MIME (media) type**.
 #[derive(Debug, Clone)]
 pub enum ImageType {
+    /// JPEG image format, mapping to `image/jpeg`.
     Jpg,
+    /// PNG image format, mapping to `image/png`.
     Png,
+    /// GIF image format, mapping to `image/gif`.
     Gif,
+    /// Scalable Vector Graphics, mapping to `image/svg+xml`.
     Svg,
 }
 
+/// Implements conversion from `ImageType` to its standard MIME type string slice.
 impl From<&ImageType> for &str {
     fn from(value: &ImageType) -> Self {
         match value {
@@ -21,15 +29,26 @@ impl From<&ImageType> for &str {
     }
 }
 
+/// Represents a single external file resource (like an image, font, or video)
+/// that must be included in the final output file.
+///
+/// The `'a` lifetime indicates that the resource only holds a reference to the file's path.
 #[derive(Debug, Clone)]
 pub enum Resource<'a> {
+    /// An image resource, holding a reference to the file path and its type.
     Image(&'a Path, ImageType),
+    /// A font resource, holding a reference to the file path. Assumed to be **OpenType**.
     Font(&'a Path),
+    /// An audio resource, holding a reference to the file path. Assumed to be **MPEG Audio (MP3)**.
     Audio(&'a Path),
+    /// A video resource, holding a reference to the file path. Assumed to be **MP4**.
     Video(&'a Path),
 }
 
 impl<'a> Resource<'a> {
+    /// Gets the appropriate **MIME media type** string for the resource variant.
+    ///
+    /// This is required for manifest generation (e.g., in EPUB).
     pub(crate) fn media_type(&self) -> &str {
         match self {
             Resource::Image(_, img_type) => img_type.into(),
@@ -39,6 +58,12 @@ impl<'a> Resource<'a> {
         }
     }
 
+    /// Reads the file content synchronously and wraps it in a [`FileContent`] structure.
+    ///
+    /// The output path is prefixed with `OEBPS/` and the filename.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be read or if the filename cannot be extracted.
     pub(crate) fn file_content(&self) -> crate::Result<FileContent<String, Vec<u8>>> {
         match self {
             Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => Ok(
@@ -47,6 +72,12 @@ impl<'a> Resource<'a> {
         }
     }
 
+    /// Reads the file content asynchronously (using `tokio::fs`) and wraps it in a [`FileContent`] structure.
+    ///
+    /// This method is only compiled when the **`async` feature** is enabled.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be read asynchronously or if the filename cannot be extracted.
     #[cfg(feature = "async")]
     pub(crate) async fn async_file_content(&self) -> crate::Result<FileContent<String, Vec<u8>>> {
         match self {
@@ -59,6 +90,10 @@ impl<'a> Resource<'a> {
         }
     }
 
+    /// Extracts the final filename (e.g., `image.png`) from the full path reference.
+    ///
+    /// # Errors
+    /// Returns a [`crate::Error::FilenameNotFound`] if the path does not contain a valid filename.
     pub(crate) fn filename(&self) -> crate::Result<String> {
         match self {
             Self::Image(path, _) | Self::Font(path) | Self::Audio(path) | Self::Video(path) => {
@@ -72,6 +107,9 @@ impl<'a> Resource<'a> {
         }
     }
 
+    /// Generates the **XML `<item>` tag** used in the package manifest (e.g., EPUB's `content.opf`).
+    ///
+    /// Returns `None` if the filename cannot be extracted.
     pub(crate) fn as_manifest_xml(&self) -> Option<String> {
         Some(format!(
             r#"<item id="{filename}" href="{filename}" media-type="{media_type}"/>"#,
@@ -81,6 +119,7 @@ impl<'a> Resource<'a> {
     }
 }
 
+/// Implements display for [`Resource`], outputting the file's full path string.
 impl Display for Resource<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -6,16 +6,26 @@ use crate::{
     output::creator::EpubFile,
 };
 
+/// The main structure representing a complete EPUB document ready for generation.
+///
+/// It holds all the necessary components: metadata, styling, resources, and ordered content.
+/// Instances of `Epub` should generally be created using the [`EpubBuilder`].
 #[derive(Debug, Clone)]
 pub(crate) struct Epub<'a> {
+    /// The descriptive metadata for the EPUB (title, author, publisher, etc.).
     pub metadata: Metadata,
+    /// Optional stylesheet content (CSS bytes) to be included in the EPUB.
     pub stylesheet: Option<&'a [u8]>,
+    /// Optional resource designated as the cover image.
     pub cover_image: Option<Resource<'a>>,
+    /// Optional list of external resources (images, fonts, audio) used by the content.
     pub resources: Option<Vec<Resource<'a>>>,
+    /// Optional, ordered list of main content units (chapters, sections, appendices).
     pub contents: Option<Vec<Content<'a>>>,
 }
 
 impl<'a> Epub<'a> {
+    /// Creates a new `Epub` instance with the mandatory [`Metadata`] and all optional fields set to `None`.
     fn new(metadata: Metadata) -> Epub<'a> {
         Self {
             metadata,
@@ -26,10 +36,14 @@ impl<'a> Epub<'a> {
         }
     }
 
+    /// Generates the XML `<meta>` tag for the EPUB's NCX file, specifying the maximum **navigation depth**.
     pub fn level_as_toc_xml(&self) -> String {
         format!(r#"<meta name="dtb:depth" content="{}"/>"#, self.level())
     }
 
+    /// Generates the XML `<meta>` tag for the **cover image**, used in the content package metadata.
+    ///
+    /// Returns `None` if no cover image is set.
     pub fn cover_image_as_metadata_xml(&self) -> Option<String> {
         Some(format!(
             r#"<meta name="cover" content="{}"/>"#,
@@ -37,10 +51,16 @@ impl<'a> Epub<'a> {
         ))
     }
 
+    /// Generates the XML `<item>` tag for the **cover image**, used in the manifest section.
+    ///
+    /// Returns `None` if no cover image is set.
     pub fn cover_image_as_manifest_xml(&self) -> Option<String> {
         self.cover_image.as_ref()?.as_manifest_xml()
     }
 
+    /// Calculates the maximum nesting level based on all content and content references.
+    ///
+    /// This value is used to set the `dtb:depth` property in the TOC/NCX file.
     fn level(&self) -> usize {
         if let Some(ref contents) = self.contents {
             let level_subcontents = contents
@@ -62,25 +82,34 @@ impl<'a> Epub<'a> {
     }
 }
 
+/// A fluent builder for creating and configuring an Epub.
+///
+/// Use the `create()` method to serialize the EPUB to a file.
 #[derive(Debug)]
 pub struct EpubBuilder<'a>(pub(crate) Epub<'a>);
 
 impl<'a> EpubBuilder<'a> {
+    /// Starts the builder by providing the mandatory descriptive metadata.
     #[must_use]
     pub fn new(metadata: Metadata) -> Self {
         Self(Epub::new(metadata))
     }
 
+    /// Sets the raw byte content for the required stylesheet (`style.css`).
     pub fn stylesheet(mut self, stylesheet: &'a [u8]) -> Self {
         self.0.stylesheet = Some(stylesheet);
         self
     }
 
+    /// Sets the primary **cover image** for the EPUB.
+    ///
+    /// The cover image is automatically registered as a resource.
     pub fn cover_image(mut self, path: &'a Path, image_type: ImageType) -> Self {
         self.0.cover_image = Some(Resource::Image(path, image_type));
         self
     }
 
+    /// Adds a single external [`Resource`] (e.g., a font or extra image) to the EPUB package.
     pub fn add_resource(mut self, resource: Resource<'a>) -> Self {
         if let Some(ref mut resources) = self.0.resources {
             resources.push(resource);
@@ -90,6 +119,7 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
+    /// Adds a collection of external [`Resource`] items to the EPUB package.
     pub fn add_resources(mut self, resources: Vec<Resource<'a>>) -> Self {
         if let Some(ref mut self_resources) = self.0.resources {
             self_resources.extend(resources);
@@ -99,6 +129,7 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
+    /// Adds a single [`Content`] unit (like a chapter or section) to the main book flow.
     pub fn add_content(mut self, content: Content<'a>) -> Self {
         if let Some(ref mut contents) = self.0.contents {
             contents.push(content);
@@ -108,6 +139,7 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
+    /// Adds a collection of [`Content`] units to the main book flow.
     pub fn add_contents(mut self, contents: Vec<Content<'a>>) -> Self {
         if let Some(ref mut self_contents) = self.0.contents {
             self_contents.extend(contents);
@@ -117,13 +149,23 @@ impl<'a> EpubBuilder<'a> {
         self
     }
 
+    /// Finalizes the builder and **synchronously** generates the EPUB file, writing the contents to the provided writer.
+    ///
+    /// Uses the default zip compression method.
+    ///
+    /// # Errors
+    /// Returns a [`crate::Result`] if there are any I/O issues or errors during XML generation.
     pub fn create<W>(self, writer: &mut W) -> crate::Result
     where
         W: Write + Send,
     {
-        self.create_with_compression(writer, ZipCompression::Stored)
+        self.create_with_compression(writer, ZipCompression::default())
     }
 
+    /// Finalizes the builder and **synchronously** generates the EPUB file, using a specified zip compression method.
+    ///
+    /// # Errors
+    /// Returns a [`crate::Result`] if there are any I/O issues or errors during XML generation.
     pub fn create_with_compression<W>(
         self,
         writer: &mut W,
@@ -135,15 +177,21 @@ impl<'a> EpubBuilder<'a> {
         EpubFile::new(self.0, writer, compression).create()
     }
 
+    /// **Asynchronously** generates the EPUB file, writing the contents to the provided `tokio::io::AsyncWrite` writer.
+    ///
+    /// This method is only available when the **`async` feature** is enabled.
     #[cfg(feature = "async")]
     pub async fn async_create<W>(self, writer: &mut W) -> crate::Result
     where
         W: tokio::io::AsyncWrite + Unpin + Send,
     {
-        self.async_create_with_compression(writer, ZipCompression::Stored)
+        self.async_create_with_compression(writer, ZipCompression::default())
             .await
     }
 
+    /// **Asynchronously** generates the EPUB file with a specified zip compression method.
+    ///
+    /// This method is only available when the **`async` feature** is enabled.
     #[cfg(feature = "async")]
     pub async fn async_create_with_compression<W>(
         self,
