@@ -1,98 +1,80 @@
 # liber
-*Rust library for creating (sync/async) EPUB files*
+*Go library for creating EPUB files*
 
 ## Description
-This crate provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
-It offers both asynchronous and blocking (synchronous) implementations, with flexible builders and output options. 
+This library provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
+It covers all [epubcheck](https://github.com/w3c/epubcheck) validations
 
-## Usage
-Add this crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-liber = "0.1.0"
-```
-
-#### Enable async feature if needed
-
-```toml
-[dependencies]
-liber = { version = "0.1.0", features = ["async"] }
+## Intallation
+```bash
+go get -u github.com/javiorfo/liber@latest
 ```
 
 ## Example
 
-```rust
-use liber::epub::{
-    ContentBuilder, ContentReference, EpubBuilder, ImageType, MetadataBuilder, ReferenceType,
-    Resource,
-};
-use std::path::Path;
+```go
+package main
 
-fn main() {
-    match create() {
-        Err(e) => eprintln!("{e}"),
-        Ok(_) => println!("ok"),
-    }
-}
+import (
+  "log"
+  "os"
 
-fn create() -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = std::fs::File::create("book.epub")?;
-    let title = "My Book";
+  "github.com/javiorfo/liber"
+  "github.com/javiorfo/liber/body"
+  "github.com/javiorfo/liber/ident"
+  "github.com/javiorfo/liber/lang"
+  "github.com/javiorfo/liber/reftype"
+  "github.com/javiorfo/liber/resource"
+)
 
-    let contents = vec![
-        ContentBuilder::new(
-            r#"<body><h1>Chapter 2</h1></body>"#.as_bytes(),
-            ReferenceType::Text("Chapter 2".to_string()),
-        )
-        .build(),
-        ContentBuilder::new(
-            r#"<body><h1>Chapter 3</h1></body>"#.as_bytes(),
-            ReferenceType::Text("Chapter 3".to_string()),
-        )
-        .add_child(
-            ContentBuilder::new(
-                r#"<body><h1>Chapter 4</h1></body>"#.as_bytes(),
-                ReferenceType::TitlePage("Chapter 4".to_string()),
-            )
-            .build(),
-        )
-        .build(),
-    ];
+func main() {
+  f, err := os.Create("book.epub")
+  if err != nil {
+	  panic(err)
+  }
+  defer f.Close()
 
-    let epub_builder = EpubBuilder::new(MetadataBuilder::title(title).creator("author").build())
-        .stylesheet("body {}".as_bytes())
-        .cover_image(Path::new("/path/to/img.jpg"), ImageType::Jpg)
-        .add_resource(Resource::Font(Path::new("/path/to/some_font.otf")))
-        .add_content(
-            ContentBuilder::new(
-                r#"<body><h1>Chapter 1</h1><h2 id="id01">Section 1.1</h2><h2 id="id02">Section 1.1.1</h2><h2 id="id03">Section 1.2</h2></body>"#.as_bytes(),
-                ReferenceType::Text("Chapter 1".to_string()),
-            )
-            .add_content_reference(ContentReference::new("Section 1.1").add_child(ContentReference::new("Section 1.1.1")))
-            .add_content_reference(ContentReference::new("Section 1.2"))
-            .add_children(contents)
-            .build(),
-        );
+  e := liber.EpubBuilder(
+	  liber.MetadataBuilder("My Book", lang.Spanish, ident.Default()).
+		  Creator("Johan Gambolputty").
+		  Build(),
+  ).
+	  Stylesheet(body.Raw("body {}")).
+	  CoverImage(resource.JpgFile("/path/cats.jpg")).
+	  AddResources(resource.PngFile("/path/cs.png")).
+	  AddContents(
+		  liber.ContentBuilder(body.Raw(
+          `<h1>Chapter 1</h1>
+		  <h2 id="id01">Section 1.1</h2>
+		  <h2 id="id02">Section 1.1.1</h2>
+		  <h2 id="id03">Section 1.2</h2>`,
+          ), reftype.Text("Chapter 1")).
+			  AddContentReferences(liber.ContentReferenceBuilder("Section 1.1").
+				  AddChildren(liber.ContentReferenceBuilder("Section 1.1.1").Build()).
+				  Build()).
+			  AddContentReferences(liber.ContentReferenceBuilder("Section 1.2").Build()).
+			  AddChildren(
+				  liber.ContentBuilder(body.Raw("<h1>Chapter 2</h1>"), reftype.Text("Chapter 2")).Build(),
+				  liber.ContentBuilder(body.Raw("<h1>Chapter 3</h1>"), reftype.Text("Chapter 3")).
+					  AddChildren(liber.ContentBuilder(body.Raw("<h1>Chapter 4</h1>"), reftype.Text("Chapter 4")).
+						  Build()).
+					  Build(),
+			  ).
+			  Build(),
+	  ).
+	  Build()
 
-    epub_builder.create(&mut file)?;
-
-    Ok(())
+  if err := liber.Create(&e, f); err != nil {
+	  log.Fatal(err)
+  }
 }
 ```
 
 ## Details
 - Here are more [examples](https://github.com/javiorfo/liber/tree/master/examples)
 - Every content is a **xhtml**. Only the body needs to be added as a content (see examples)
-- Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequencial cNN.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be idNN (id01, id02...) corresponding to the Content.
+- Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequencial c{number}.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be id{number} (id01, id02...) corresponding to the Content.
 
-## Features
-- Default blocking creation. Async available too (using tokio and async_zip crates)
-- Multi section creation (contents, subcontents, references and subreferences)
-- Supporting file content and raw content (bytes) creation
-
-## Docs
-Find all the configuration options in the full [documentation](https://docs.rs/liber/0.1.0/liber/).
 
 ---
 

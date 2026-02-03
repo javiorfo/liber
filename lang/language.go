@@ -1,10 +1,14 @@
 package lang
 
+// Language defines the interface for language types supported by the EPUB standard.
+// It uses a marker method to ensure only valid internal types are used.
 type Language interface {
 	isLanguage()
+	// Code returns the ISO 639-1 two-letter language code (e.g., "en", "es").
 	Code() string
 }
 
+// Lang represents a specific language using an internal integer enumeration.
 type Lang int
 
 const (
@@ -57,6 +61,9 @@ const (
 )
 
 func (l Lang) isLanguage() {}
+
+// Code returns the corresponding ISO 639-1 string for the Lang value.
+// If the language is unrecognized, it defaults to "en" (English).
 func (l Lang) Code() string {
 	switch l {
 	case Arabic:

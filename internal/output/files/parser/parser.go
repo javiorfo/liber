@@ -15,11 +15,14 @@ import (
 	"github.com/javiorfo/nilo"
 )
 
+// Xhtml internal helper to track file numbering and naming during parsing.
 type Xhtml struct {
 	number   int
 	filename string
 }
 
+// CreateResourceFileContent reads a physical file from the disk based on a resource
+// and wraps it in a FileContent struct for the archive.
 func CreateResourceFileContent(r resource.Resource) (*files.FileContent[[]byte], error) {
 	path := fmt.Sprint(r)
 	content, err := os.ReadFile(path)
@@ -31,6 +34,9 @@ func CreateResourceFileContent(r resource.Resource) (*files.FileContent[[]byte],
 	return &fc, nil
 }
 
+// ContentOpf generates the Open Packaging Format (OPF) file.
+// This is the "brain" of the EPUB, containing the manifest of all files,
+// the spine (reading order), and the guide (semantic sections).
 func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	metadata := e.Metadata
 	var builder strings.Builder
@@ -39,6 +45,7 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	<package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
 	<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">`)
 
+	// Standard Dublin Core Metadata
 	builder.WriteString("<dc:title>" + metadata.Title + "</dc:title>")
 	builder.WriteString("<dc:language>" + metadata.Language.Code() + "</dc:language>")
 	fmt.Fprintf(&builder, `<dc:identifier id="BookId" opf:scheme="%s">%s</dc:identifier>`, metadata.Identifier.Label(), metadata.Identifier.String())
@@ -71,6 +78,7 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 		builder.WriteString(`<meta name="cover" content="` + filepath.Base(fmt.Sprint(i)) + `"/>`)
 	})
 
+	// Manifest: Lists every file included in the EPUB
 	builder.WriteString(`</metadata><manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />`)
 
 	if e.Stylesheet.IsValue() {
@@ -98,19 +106,21 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	builder.WriteString(`</manifest><spine toc="ncx">`)
 
 	tocNumber := 0
-	createContentChain(
+	if err := createContentChain(
 		&tocNumber,
 		&builder,
 		e.Contents,
 		func(filename string, _ reftype.ReferenceType) string {
 			return fmt.Sprintf(`<itemref idref="%s"/>`, filename)
 		},
-	)
+	); err != nil {
+		return nil, err
+	}
 
 	builder.WriteString("</spine><guide>")
 
 	guideNumber := 0
-	createContentChain(
+	if err := createContentChain(
 		&guideNumber,
 		&builder,
 		e.Contents,
@@ -121,7 +131,9 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 				filename,
 			)
 		},
-	)
+	); err != nil {
+		return nil, err
+	}
 
 	builder.WriteString("</guide></package>")
 
@@ -129,6 +141,8 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	return &fc, nil
 }
 
+// createContentChain is a recursive helper that traverses the Content tree
+// to populate manifest, spine, or guide sections based on a provided formatting function.
 func createContentChain(
 	fileNumber *int,
 	builder *strings.Builder,
@@ -144,6 +158,7 @@ func createContentChain(
 
 		builder.WriteString(f(filename, con.ReferenceType))
 
+		// Recursively appends content strings to the builder
 		if err := createContentChain(fileNumber, builder, con.SubContents, f); err != nil {
 			return err
 		}
@@ -151,6 +166,9 @@ func createContentChain(
 	return nil
 }
 
+// TocNcx generates the Navigation Control file for XML (NCX).
+// This provides the Table of Contents that allows e-readers to display a
+// navigation menu outside of the book content.
 func TocNcx(e *epub.Epub) (*files.FileContent[string], error) {
 	metadata := e.Metadata
 	var builder strings.Builder
@@ -177,6 +195,8 @@ func TocNcx(e *epub.Epub) (*files.FileContent[string], error) {
 	return &fc, nil
 }
 
+// contentsToNavPoint recursively converts the Content tree into <navPoint>
+// elements required for the NCX navigation map.
 func contentsToNavPoint(playOrder *int, fileNumber *int, contents []epub.Content) nilo.Option[string] {
 	var builder strings.Builder
 
@@ -202,6 +222,7 @@ func contentsToNavPoint(playOrder *int, fileNumber *int, contents []epub.Content
 				content.ContentReferences,
 				&contentRefNumber,
 			).Or(""),
+			// Recursive call to sub contents
 			contentsToNavPoint(playOrder, fileNumber, content.SubContents).Or(""),
 		)
 
@@ -211,6 +232,8 @@ func contentsToNavPoint(playOrder *int, fileNumber *int, contents []epub.Content
 	return nilo.Value(builder.String())
 }
 
+// contentReferencesToNavPoint converts internal ContentReferences (anchors)
+// into nested <navPoint> elements within a specific file.
 func contentReferencesToNavPoint(
 	currentXhtml Xhtml,
 	playOrder *int,
@@ -245,6 +268,7 @@ func contentReferencesToNavPoint(
 			currentPlayOrder,
 			conRef.Title,
 			conRef.ReferenceName(currentXhtml.filename, currentLink),
+			// Recursive call sub content references
 			contentReferencesToNavPoint(
 				currentXhtml,
 				playOrder,
@@ -260,6 +284,7 @@ func contentReferencesToNavPoint(
 	return nilo.Value(builder.String())
 }
 
+// resourceAsManifestXml converts a resource into a valid manifest <item/> tag.
 func resourceAsManifestXml(r resource.Resource) string {
 	filename := filepath.Base(fmt.Sprint(r))
 	return fmt.Sprintf(`<item id="%s" href="%s" media-type="%s"/>`,
