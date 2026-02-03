@@ -56,19 +56,15 @@ func (c Content) CreateFileContent(number *int, stylesheet string) ([]files.File
 		return nil, err
 	}
 
-	xml := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-        <html xmlns="http://www.w3.org/1999/xhtml"><head><title>%s</title>%s</head>%s</html>`,
+	xml := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+	<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+	<html xmlns="http://www.w3.org/1999/xhtml"><head><title>%s</title>%s</head>%s</html>`,
 		c.ReferenceType,
 		stylesheet,
 		text,
 	)
 
-	xmlContent, err := files.FormatXmlString(xml)
-	if err != nil {
-		return nil, err
-	}
-
-	fileContents = append(fileContents, files.NewFileContent("OEBPS/"+c.GetFilename(*number), xmlContent))
+	fileContents = append(fileContents, files.NewFileContent("OEBPS/"+c.GetFilename(*number), files.FormatXML(xml)))
 
 	for _, subc := range c.SubContents {
 		contents, err := subc.CreateFileContent(number, stylesheet)

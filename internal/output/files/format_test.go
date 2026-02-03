@@ -33,15 +33,10 @@ func TestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FormatXml(strings.NewReader(tt.input))
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("FormatXml() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			got := FormatXML(tt.input)
 
 			if !tt.wantErr && strings.TrimSpace(got) != strings.TrimSpace(tt.expected) {
-				t.Errorf("FormatXml() got:\n%s\nwant:\n%s", got, tt.expected)
+				t.Errorf("FormatXML() got:\n%s\nwant:\n%s", got, tt.expected)
 			}
 		})
 	}

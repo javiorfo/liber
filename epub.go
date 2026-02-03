@@ -46,6 +46,6 @@ func (b *epubBuilder) Build() epub.Epub {
 	return b.Epub
 }
 
-func Create(e epub.Epub, writer io.Writer) error {
+func Create(e *epub.Epub, writer io.Writer) error {
 	return output.NewCreator(e, writer).Create()
 }

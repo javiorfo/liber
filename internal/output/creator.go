@@ -11,11 +11,11 @@ import (
 )
 
 type Creator struct {
-	Epub      epub.Epub
+	Epub      *epub.Epub
 	zipWriter *zip.Writer
 }
 
-func NewCreator(e epub.Epub, writer io.Writer) *Creator {
+func NewCreator(e *epub.Epub, writer io.Writer) *Creator {
 	return &Creator{
 		Epub:      e,
 		zipWriter: zip.NewWriter(writer),

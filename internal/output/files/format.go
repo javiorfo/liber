@@ -1,55 +1,76 @@
 package files
 
 import (
-	"bytes"
-	"encoding/xml"
-	"io"
+	"html"
+	"regexp"
+	"runtime"
 	"strings"
 )
 
-func FormatXml(r io.Reader) (string, error) {
-	var out bytes.Buffer
+var (
+	reg           = regexp.MustCompile(`<([/!]?)([^>]+?)(/?)>`)
+	reXMLComments = regexp.MustCompile(`(?s)(<!--)(.*?)(-->)`)
+	reSpaces      = regexp.MustCompile(`(?s)>\s+<`)
+	reNewlines    = regexp.MustCompile(`\r*\n`)
+	NL            = "\n"
+)
 
-	decoder := xml.NewDecoder(r)
-	encoder := xml.NewEncoder(&out)
-	encoder.Indent("", "  ")
-
-	for {
-		token, err := decoder.Token()
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return "", err
-		}
-
-		switch t := token.(type) {
-		case xml.StartElement:
-			t.Name.Space = ""
-			for i := range t.Attr {
-				t.Attr[i].Name.Space = ""
-			}
-			token = t
-		case xml.EndElement:
-			t.Name.Space = ""
-			token = t
-		case xml.CharData:
-			if len(bytes.TrimSpace(t)) == 0 {
-				continue
-			}
-		}
-
-		err = encoder.EncodeToken(token)
-		if err != nil {
-			return "", err
-		}
+func init() {
+	if runtime.GOOS == "windows" {
+		NL = "\r\n"
 	}
-
-	encoder.Flush()
-	return out.String(), nil
 }
 
-func FormatXmlString(s string) (string, error) {
-	return FormatXml(strings.NewReader(s))
+func FormatXML(xmlString string) string {
+	nestedTagsInComment := false
+	src := reSpaces.ReplaceAllString(xmlString, "><")
+	if nestedTagsInComment {
+		src = reXMLComments.ReplaceAllStringFunc(src, func(m string) string {
+			parts := reXMLComments.FindStringSubmatch(m)
+			p2 := reNewlines.ReplaceAllString(parts[2], " ")
+			return parts[1] + html.EscapeString(p2) + parts[3]
+		})
+	}
+	rf := replaceTag()
+	r := reg.ReplaceAllStringFunc(src, rf)
+	if nestedTagsInComment {
+		r = reXMLComments.ReplaceAllStringFunc(r, func(m string) string {
+			parts := reXMLComments.FindStringSubmatch(m)
+			return parts[1] + html.UnescapeString(parts[2]) + parts[3]
+		})
+	}
+
+	return r
+}
+
+func replaceTag() func(string) string {
+	indent := "  "
+	indentLevel := 0
+	lastEndElem := true
+	return func(m string) string {
+		if strings.HasPrefix(m, "<?xml") {
+			return strings.Repeat(indent, indentLevel) + m
+		}
+		if strings.HasSuffix(m, "/>") {
+			lastEndElem = true
+			return NL + strings.Repeat(indent, indentLevel) + m
+		}
+		if strings.HasPrefix(m, "<!") {
+			return NL + strings.Repeat(indent, indentLevel) + m
+		}
+		if strings.HasPrefix(m, "</") {
+			indentLevel--
+			if lastEndElem {
+				return NL + strings.Repeat(indent, indentLevel) + m
+			}
+			lastEndElem = true
+			return m
+		} else {
+			lastEndElem = false
+		}
+		defer func() {
+			indentLevel++
+		}()
+		return NL + strings.Repeat(indent, indentLevel) + m
+	}
 }

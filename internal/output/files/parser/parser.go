@@ -31,13 +31,13 @@ func CreateResourceFileContent(r resource.Resource) (*files.FileContent[[]byte],
 	return &fc, nil
 }
 
-func ContentOpf(e epub.Epub) (*files.FileContent[string], error) {
+func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	metadata := e.Metadata
 	var builder strings.Builder
 
 	builder.WriteString(`<?xml version="1.0" encoding="utf-8"?>
-<package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
-        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">`)
+	<package version="2.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+	<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">`)
 
 	builder.WriteString("<dc:title>" + metadata.Title + "</dc:title>")
 	builder.WriteString("<dc:language>" + metadata.Language.Code() + "</dc:language>")
@@ -125,12 +125,7 @@ func ContentOpf(e epub.Epub) (*files.FileContent[string], error) {
 
 	builder.WriteString("</guide></package>")
 
-	xml, err := files.FormatXmlString(builder.String())
-	if err != nil {
-		return nil, err
-	}
-
-	fc := files.NewFileContent("OEBPS/content.opf", xml)
+	fc := files.NewFileContent("OEBPS/content.opf", files.FormatXML(builder.String()))
 	return &fc, nil
 }
 
@@ -156,13 +151,13 @@ func createContentChain(
 	return nil
 }
 
-func TocNcx(e epub.Epub) (*files.FileContent[string], error) {
+func TocNcx(e *epub.Epub) (*files.FileContent[string], error) {
 	metadata := e.Metadata
 	var builder strings.Builder
 
 	builder.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head>`)
+	<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+	<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head>`)
 
 	fmt.Fprintf(&builder, `<meta name="dtb:uid" content="%s"/>`, metadata.Identifier.String())
 	fmt.Fprintf(&builder, `<meta name="dtb:depth" content="%d"/>`, e.Level())
@@ -178,12 +173,7 @@ func TocNcx(e epub.Epub) (*files.FileContent[string], error) {
 
 	builder.WriteString("</navMap></ncx>")
 
-	xml, err := files.FormatXmlString(builder.String())
-	if err != nil {
-		return nil, err
-	}
-
-	fc := files.NewFileContent("OEBPS/toc.ncx", xml)
+	fc := files.NewFileContent("OEBPS/toc.ncx", files.FormatXML(builder.String()))
 	return &fc, nil
 }
 
@@ -199,8 +189,8 @@ func contentsToNavPoint(playOrder *int, fileNumber *int, contents []epub.Content
 
 		contentRefNumber := 0
 		navPoint := fmt.Sprintf(`<navPoint id="navPoint-%d" playOrder="%d">
-            <navLabel><text>%s</text></navLabel>
-            <content src="%s"/>%s%s</navPoint>`,
+			<navLabel><text>%s</text></navLabel>
+			<content src="%s"/>%s%s</navPoint>`,
 			currentPlayOrder,
 			currentPlayOrder,
 			content.ReferenceType,
@@ -232,22 +222,9 @@ func contentReferencesToNavPoint(
 
 	var prefix string
 	var tocNumber int
-
-	i := strings.LastIndex(tocIndex, "-")
-
-	if i == -1 {
-		prefix = ""
-		tocNumber = 0
-	} else {
+	if i := strings.LastIndex(tocIndex, "-"); i != -1 {
 		prefix = tocIndex[:i]
-		numberStr := tocIndex[i+1:]
-
-		val, err := strconv.Atoi(numberStr)
-		if err != nil {
-			tocNumber = 0
-		} else {
-			tocNumber = val
-		}
+		tocNumber = nilo.FromResult(strconv.Atoi(tocIndex[i+1:])).Or(0)
 	}
 
 	for _, conRef := range contentReferences {
@@ -261,8 +238,8 @@ func contentReferencesToNavPoint(
 		currentPlayOrder := *playOrder
 
 		navPoint := fmt.Sprintf(`<navPoint id="navPoint-%d%s" playOrder="%d">
-            <navLabel><text>%s</text></navLabel>
-            <content src="%s"/>%s</navPoint>`,
+			<navLabel><text>%s</text></navLabel>
+			<content src="%s"/>%s</navPoint>`,
 			currentXhtml.number,
 			currentToc,
 			currentPlayOrder,
