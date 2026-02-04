@@ -5,7 +5,7 @@
 - This library provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
 - It covers all [epubcheck](https://github.com/w3c/epubcheck) validations
 
-## Intallation
+## Installation
 ```bash
 go get -u github.com/javiorfo/liber@latest
 ```
@@ -73,7 +73,7 @@ func main() {
 
 ## Details
 - Every content is a **xhtml**. Only the body needs to be added as a content (see [examples](https://github.com/javiorfo/liber/tree/master/examples))
-- Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequencial c{number}.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be id{number} (id01, id02...) corresponding to the Content.
+- Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequential c{number}.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be id{number} (id01, id02...) corresponding to the Content.
 
 
 ---
