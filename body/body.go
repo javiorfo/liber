@@ -15,6 +15,7 @@ type Body interface {
 
 // Raw represents content that is already held in memory as a string.
 // This is useful for dynamically generated HTML or text.
+// The string must be the structure that holds the <body></body> tag
 type Raw string
 
 func (Raw) isBody() {}
@@ -31,6 +32,7 @@ func (r Raw) ToString() (string, error) {
 
 // File represents a path to a file on the local file system.
 // The content is read only when a conversion method is called.
+// The file content must be the structure that holds the <body></body> tag
 type File string
 
 func (File) isBody() {}

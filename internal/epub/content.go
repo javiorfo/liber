@@ -69,7 +69,7 @@ func (c Content) CreateFileContent(number *int, stylesheet string) ([]files.File
 
 	text, err := c.Body.ToString()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse body to string %w", err)
 	}
 
 	// Generating a standard XHTML 1.1 header required for EPUB compatibility.

@@ -12,12 +12,6 @@ import (
 )
 
 func main() {
-	f, err := os.Create("book.epub")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
 	e := liber.EpubBuilder(
 		liber.MetadataBuilder("My Book", lang.Spanish, ident.Default()).
 			Creator("author").
@@ -46,7 +40,7 @@ func main() {
 		).
 		Build()
 
-	if err := liber.Create(&e, f); err != nil {
+	if err := liber.Create(&e, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 }

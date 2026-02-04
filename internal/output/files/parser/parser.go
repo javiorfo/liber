@@ -27,7 +27,7 @@ func CreateResourceFileContent(r resource.Resource) (*files.FileContent[[]byte],
 	path := fmt.Sprint(r)
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read resource file %s: %w", path, err)
 	}
 
 	fc := files.NewFileContent("OEBPS/"+filepath.Base(path), content)
@@ -94,14 +94,16 @@ func ContentOpf(e *epub.Epub) (*files.FileContent[string], error) {
 	}
 
 	manifestNumber := 0
-	createContentChain(
+	if err := createContentChain(
 		&manifestNumber,
 		&builder,
 		e.Contents,
 		func(filename string, _ reftype.ReferenceType) string {
 			return fmt.Sprintf(`<item id="%s" href="%s" media-type="application/xhtml+xml"/>`, filename, filename)
 		},
-	)
+	); err != nil {
+		return nil, err
+	}
 
 	builder.WriteString(`</manifest><spine toc="ncx">`)
 
@@ -153,7 +155,7 @@ func createContentChain(
 		*fileNumber++
 		filename := con.GetFilename(*fileNumber)
 		if !strings.HasSuffix(filename, ".xhtml") {
-			return fmt.Errorf("Content filename must end with '.xhtml'. Got '%s'", filename)
+			return fmt.Errorf("content filename must end with '.xhtml'. Got '%s'", filename)
 		}
 
 		builder.WriteString(f(filename, con.ReferenceType))
@@ -169,7 +171,7 @@ func createContentChain(
 // TocNcx generates the Navigation Control file for XML (NCX).
 // This provides the Table of Contents that allows e-readers to display a
 // navigation menu outside of the book content.
-func TocNcx(e *epub.Epub) (*files.FileContent[string], error) {
+func TocNcx(e *epub.Epub) files.FileContent[string] {
 	metadata := e.Metadata
 	var builder strings.Builder
 
@@ -191,8 +193,7 @@ func TocNcx(e *epub.Epub) (*files.FileContent[string], error) {
 
 	builder.WriteString("</navMap></ncx>")
 
-	fc := files.NewFileContent("OEBPS/toc.ncx", files.FormatXML(builder.String()))
-	return &fc, nil
+	return files.NewFileContent("OEBPS/toc.ncx", files.FormatXML(builder.String()))
 }
 
 // contentsToNavPoint recursively converts the Content tree into <navPoint>

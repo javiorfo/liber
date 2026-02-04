@@ -2,6 +2,7 @@ package output
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 
 	"github.com/javiorfo/liber/body"
@@ -52,7 +53,7 @@ func (c *Creator) Create() error {
 	if e.Stylesheet.IsValue() {
 		bytes, err := e.Stylesheet.AsValue().ToBytes()
 		if err != nil {
-			return err
+			return fmt.Errorf("parse stylesheet as bytes: %w", err)
 		}
 		if err := c.AddFile(files.NewFileContent("OEBPS/style.css", bytes)); err != nil {
 			return err
@@ -63,7 +64,7 @@ func (c *Creator) Create() error {
 	if e.CoverImage.IsValue() {
 		fc, err := parser.CreateResourceFileContent(e.CoverImage.AsValue())
 		if err != nil {
-			return err
+			return fmt.Errorf("create cover image: %w", err)
 		}
 		if err := c.AddFile(*fc); err != nil {
 			return err
@@ -74,7 +75,7 @@ func (c *Creator) Create() error {
 	for _, res := range e.Resources {
 		fc, err := parser.CreateResourceFileContent(res)
 		if err != nil {
-			return err
+			return fmt.Errorf("create resource: %w", err)
 		}
 		if err := c.AddFile(*fc); err != nil {
 			return err
@@ -90,7 +91,7 @@ func (c *Creator) Create() error {
 	for _, con := range e.Contents {
 		fileContents, err := con.CreateFileContent(&fileNumber, stylesheet)
 		if err != nil {
-			return err
+			return fmt.Errorf("create content: %w", err)
 		}
 
 		for _, fc := range fileContents {
@@ -103,18 +104,14 @@ func (c *Creator) Create() error {
 	// Step 6: Generate and write the Package Document (OPF).
 	opfFileContent, err := parser.ContentOpf(c.Epub)
 	if err != nil {
-		return err
+		return fmt.Errorf("create content.opf: %w", err)
 	}
 	if err := c.AddFile(opfFileContent.ToBytes()); err != nil {
 		return err
 	}
 
 	// Step 7: Generate and write the Navigation Control file (NCX).
-	tocFileContent, err := parser.TocNcx(c.Epub)
-	if err != nil {
-		return err
-	}
-	if err := c.AddFile(tocFileContent.ToBytes()); err != nil {
+	if err := c.AddFile(parser.TocNcx(c.Epub).ToBytes()); err != nil {
 		return err
 	}
 
@@ -126,12 +123,12 @@ func (c *Creator) Create() error {
 func (c *Creator) AddFile(fileContent files.FileContent[[]byte]) error {
 	writer, err := c.zipWriter.Create(fileContent.Filepath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create zip entry for '%s': %w", fileContent.Filepath, err)
 	}
 
 	_, err = writer.Write(fileContent.Bytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("write content to '%s': %w", fileContent.Filepath, err)
 	}
 
 	return nil

@@ -1,0 +1,11 @@
+body {
+    background-color: blue;
+}
+
+/* Font added in custom/main.go */
+@font-face {
+  font-family: 'CustomFont';
+  src: url('mock.otf') format('otf');
+  font-weight: normal;
+  font-style: normal;
+}

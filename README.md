@@ -2,8 +2,8 @@
 *Go library for creating EPUB files*
 
 ## Description
-This library provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
-It covers all [epubcheck](https://github.com/w3c/epubcheck) validations
+- This library provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
+- It covers all [epubcheck](https://github.com/w3c/epubcheck) validations
 
 ## Intallation
 ```bash
@@ -65,14 +65,14 @@ func main() {
 	  Build()
 
   if err := liber.Create(&e, f); err != nil {
+      os.Remove("book.epub")
 	  log.Fatal(err)
   }
 }
 ```
 
 ## Details
-- Here are more [examples](https://github.com/javiorfo/liber/tree/master/examples)
-- Every content is a **xhtml**. Only the body needs to be added as a content (see examples)
+- Every content is a **xhtml**. Only the body needs to be added as a content (see [examples](https://github.com/javiorfo/liber/tree/master/examples))
 - Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequencial c{number}.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be id{number} (id01, id02...) corresponding to the Content.
 
 

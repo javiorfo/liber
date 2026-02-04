@@ -93,11 +93,7 @@ func TestTocNcx(t *testing.T) {
 		},
 	}
 
-	fc, err := TocNcx(e)
-	if err != nil {
-		t.Fatalf("TocNcx error: %v", err)
-	}
-
+	fc := TocNcx(e)
 	xml := fc.Bytes
 
 	if !strings.Contains(xml, `playOrder="1"`) {

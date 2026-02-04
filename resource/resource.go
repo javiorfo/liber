@@ -1,5 +1,7 @@
 package resource
 
+import "strings"
+
 // Resource represents any asset that can be included in an EPUB.
 // It requires a valid MIME media type.
 type Resource interface {
@@ -47,8 +49,13 @@ func (PngFile) Mediatype() string { return "image/png" }
 // FontFile represents an OpenType font resource used for document styling.
 type FontFile string
 
-func (FontFile) isResource()       {}
-func (FontFile) Mediatype() string { return "application/vnd.ms-opentype" }
+func (FontFile) isResource() {}
+func (f FontFile) Mediatype() string {
+	if strings.HasSuffix(string(f), "ttf") {
+		return "application/x-font-ttf"
+	}
+	return "application/vnd.ms-opentype"
+}
 
 // AudioFile represents an MPEG audio resource (MP3).
 type AudioFile string
