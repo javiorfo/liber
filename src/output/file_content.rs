@@ -288,7 +288,7 @@ pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     content_builder.add_optional(
         epub.contents
             .as_ref()
-            .and_then(|contents| contents_to_nav_point(&mut 0, contents)),
+            .and_then(|contents| contents_to_nav_point(&mut 0, &mut 0, contents)),
     );
 
     content_builder.add(r#"</navMap></ncx>"#);
@@ -313,12 +313,18 @@ pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
 ///
 /// Returns an `Option<String>`: `Some(String)` containing the generated XML for the
 /// navigation points, or `None` if the input slice is empty.
-fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Option<String> {
+fn contents_to_nav_point(
+    play_order: &mut usize,
+    file_number: &mut usize,
+    contents: &[Content<'_>],
+) -> Option<String> {
     let mut result = String::new();
     for content in contents {
         *play_order += 1;
         let current_play_order = *play_order;
-        let filename = &content.filename(current_play_order);
+
+        *file_number += 1;
+        let filename = &content.filename(*file_number);
 
         let nav_point = format!(
             r#"<navPoint id="navPoint-{current_play_order}" playOrder="{current_play_order}">
@@ -339,7 +345,7 @@ fn contents_to_nav_point(play_order: &mut usize, contents: &[Content<'_>]) -> Op
             subs = content
                 .subcontents
                 .as_ref()
-                .and_then(|s| contents_to_nav_point(play_order, s))
+                .and_then(|s| contents_to_nav_point(play_order, file_number, s))
                 .unwrap_or_default(),
         );
         result.push_str(&nav_point);
@@ -514,8 +520,9 @@ mod tests {
             );
 
         let mut play_order = 0;
+        let mut file_number = 0;
 
-        let result = contents_to_nav_point(&mut play_order, &mock_epub.0.contents.unwrap());
+        let result = contents_to_nav_point(&mut play_order, &mut file_number, &mock_epub.0.contents.unwrap());
 
         assert!(result.is_some());
         let xml = cleaner(result.unwrap());
@@ -543,8 +550,9 @@ mod tests {
         );
 
         let mut play_order = 0;
+        let mut file_number = 0;
 
-        let result = contents_to_nav_point(&mut play_order, &mock_epub.0.contents.unwrap());
+        let result = contents_to_nav_point(&mut play_order, &mut file_number, &mock_epub.0.contents.unwrap());
         assert!(result.is_some());
         let xml = cleaner(result.unwrap());
 
