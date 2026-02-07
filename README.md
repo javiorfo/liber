@@ -42,17 +42,17 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
 
     let contents = vec![
         ContentBuilder::new(
-            r#"<body><h1>Chapter 2</h1></body>"#.as_bytes(),
+            r#"<h1>Chapter 2</h1>"#.as_bytes(),
             ReferenceType::Text("Chapter 2".to_string()),
         )
         .build(),
         ContentBuilder::new(
-            r#"<body><h1>Chapter 3</h1></body>"#.as_bytes(),
+            r#"<h1>Chapter 3</h1>"#.as_bytes(),
             ReferenceType::Text("Chapter 3".to_string()),
         )
         .add_child(
             ContentBuilder::new(
-                r#"<body><h1>Chapter 4</h1></body>"#.as_bytes(),
+                r#"<h1>Chapter 4</h1>"#.as_bytes(),
                 ReferenceType::TitlePage("Chapter 4".to_string()),
             )
             .build(),
@@ -66,7 +66,7 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
         .add_resource(Resource::Font(Path::new("/path/to/some_font.otf")))
         .add_content(
             ContentBuilder::new(
-                r#"<body><h1>Chapter 1</h1><h2 id="id01">Section 1.1</h2><h2 id="id02">Section 1.1.1</h2><h2 id="id03">Section 1.2</h2></body>"#.as_bytes(),
+                r#"<h1>Chapter 1</h1><h2 id="id01">Section 1.1</h2><h2 id="id02">Section 1.1.1</h2><h2 id="id03">Section 1.2</h2>"#.as_bytes(),
                 ReferenceType::Text("Chapter 1".to_string()),
             )
             .add_content_reference(ContentReference::new("Section 1.1").add_child(ContentReference::new("Section 1.1.1")))
