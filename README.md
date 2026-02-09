@@ -82,8 +82,7 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ## Details
-- Here are more [examples](https://github.com/javiorfo/liber/tree/master/examples)
-- Every content is a **xhtml**. Only the body needs to be added as a content (see examples)
+- Every content is a xhtml. The entire xhml text or only the body could be added as content (the latter is more practical and secure because follows the standard). See [examples](https://github.com/javiorfo/liber/tree/master/examples)
 - Content (Ex: Chapter) and ContentReference (Ex: Chapter#ref1) could be named with filename and id methods respectively. If none is set, Content will be sequencial cNN.xhtml (c01.xhtml, c02.xhtml...) and ContentReferences will be idNN (id01, id02...) corresponding to the Content.
 
 ## Features
