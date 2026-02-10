@@ -21,19 +21,19 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
 
     let contents = vec![
         ContentBuilder::new(
-            r#"<h1>Chapter 2</h1>"#.as_bytes(),
+            r#"<body><h1>Chapter 2</h1></body>"#.as_bytes(),
             ReferenceType::Text("Chapter 2".to_string()),
         )
         .filename("chapter2.xhtml")
         .build(),
         ContentBuilder::new(
-            r#"<h1>Chapter 3</h1>"#.as_bytes(),
+            r#"<body><h1>Chapter 3</h1></body>"#.as_bytes(),
             ReferenceType::Text("Chapter 3".to_string()),
         )
         .filename("chapter3.xhtml")
         .add_child(
             ContentBuilder::new(
-                r#"<h1>Chapter 4</h1>"#.as_bytes(),
+                r#"<body><h1>Chapter 4</h1></body>"#.as_bytes(),
                 ReferenceType::TitlePage("Chapter 4".to_string()),
             )
             .filename("chapter4.xhtml")

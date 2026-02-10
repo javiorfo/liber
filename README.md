@@ -2,22 +2,23 @@
 *Rust library for creating (sync/async) EPUB files*
 
 ## Description
-This crate provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
-It offers both asynchronous and blocking (synchronous) implementations, with flexible builders and output options. 
+- This crate provides a high-level, ergonomic API for creating EPUB files (2.0.1). 
+- It offers both asynchronous and blocking (synchronous) implementations, with flexible builders and output options. 
+- Covers all [epubcheck](https://github.com/w3c/epubcheck) validations
 
 ## Usage
 Add this crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-liber = "0.1.0"
+liber = "0.1.1"
 ```
 
 #### Enable async feature if needed
 
 ```toml
 [dependencies]
-liber = { version = "0.1.0", features = ["async"] }
+liber = { version = "0.1.1", features = ["async"] }
 ```
 
 ## Example
@@ -42,17 +43,17 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
 
     let contents = vec![
         ContentBuilder::new(
-            r#"<h1>Chapter 2</h1>"#.as_bytes(),
+            r#"<body><h1>Chapter 2</h1></body>"#.as_bytes(),
             ReferenceType::Text("Chapter 2".to_string()),
         )
         .build(),
         ContentBuilder::new(
-            r#"<h1>Chapter 3</h1>"#.as_bytes(),
+            r#"<body><h1>Chapter 3</h1></body>"#.as_bytes(),
             ReferenceType::Text("Chapter 3".to_string()),
         )
         .add_child(
             ContentBuilder::new(
-                r#"<h1>Chapter 4</h1>"#.as_bytes(),
+                r#"<body><h1>Chapter 4</h1></body>"#.as_bytes(),
                 ReferenceType::TitlePage("Chapter 4".to_string()),
             )
             .build(),
@@ -66,7 +67,7 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
         .add_resource(Resource::Font(Path::new("/path/to/some_font.otf")))
         .add_content(
             ContentBuilder::new(
-                r#"<h1>Chapter 1</h1><h2 id="id01">Section 1.1</h2><h2 id="id02">Section 1.1.1</h2><h2 id="id03">Section 1.2</h2>"#.as_bytes(),
+                r#"<body><h1>Chapter 1</h1><h2 id="id01">Section 1.1</h2><h2 id="id02">Section 1.1.1</h2><h2 id="id03">Section 1.2</h2></body>"#.as_bytes(),
                 ReferenceType::Text("Chapter 1".to_string()),
             )
             .add_content_reference(ContentReference::new("Section 1.1").add_child(ContentReference::new("Section 1.1.1")))
@@ -91,7 +92,7 @@ fn create() -> Result<(), Box<dyn std::error::Error>> {
 - Supporting file content and raw content (bytes) creation
 
 ## Docs
-Find all the configuration options in the full [documentation](https://docs.rs/liber/0.1.0/liber/).
+Find all the configuration options in the full [documentation](https://docs.rs/liber/0.1.1/liber/).
 
 ---
 

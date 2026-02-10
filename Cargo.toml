@@ -1,6 +1,6 @@
 [package]
 name = "liber"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Rust library for creating (sync/async) EPUB files"
 authors = ["Javier Orfo <javierorfo@protonmail.com>"]

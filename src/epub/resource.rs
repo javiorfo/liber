@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs, path::Path};
+use std::{ffi::OsStr, fmt::Display, fs, path::Path};
 
 use crate::output::file_content::FileContent;
 
@@ -52,7 +52,10 @@ impl<'a> Resource<'a> {
     pub(crate) fn media_type(&self) -> &str {
         match self {
             Resource::Image(_, img_type) => img_type.into(),
-            Resource::Font(_) => "application/vnd.ms-opentype",
+            Resource::Font(path) => path
+                .extension()
+                .filter(|&p| p == OsStr::new("ttf"))
+                .map_or("application/vnd.ms-opentype", |_| "application/x-font-ttf"),
             Resource::Audio(_) => "audio/mpeg",
             Resource::Video(_) => "video/mp4",
         }
@@ -183,9 +186,9 @@ mod tests {
         let resource = Resource::Image(path, ImageType::Gif);
         assert_eq!(resource.filename().unwrap(), "just_a_file.gif");
 
-        let path = Path::new("assets/font.otf");
+        let path = Path::new("assets/font.ttf");
         let resource = Resource::Font(path);
-        assert_eq!(resource.filename().unwrap(), "font.otf");
+        assert_eq!(resource.filename().unwrap(), "font.ttf");
     }
 
     #[test]
