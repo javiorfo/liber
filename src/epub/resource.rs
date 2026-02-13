@@ -52,10 +52,13 @@ impl<'a> Resource<'a> {
     pub(crate) fn media_type(&self) -> &str {
         match self {
             Resource::Image(_, img_type) => img_type.into(),
-            Resource::Font(path) => path
-                .extension()
-                .filter(|&p| p == OsStr::new("ttf"))
-                .map_or("application/vnd.ms-opentype", |_| "application/x-font-ttf"),
+            Resource::Font(path) => {
+                if path.extension() == Some(OsStr::new("ttf")) {
+                    "application/x-font-ttf"
+                } else {
+                    "application/vnd.ms-opentype"
+                }
+            }
             Resource::Audio(_) => "audio/mpeg",
             Resource::Video(_) => "video/mp4",
         }
