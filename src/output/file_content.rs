@@ -181,7 +181,7 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|filename, _| {
+        |filename, _| {
             format!(
                 r#"<item id="{filename}" href="{filename}" media-type="application/xhtml+xml"/>"#
             )
@@ -194,7 +194,7 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|filename, _| format!(r#"<itemref idref="{filename}"/>"#),
+        |filename, _| format!(r#"<itemref idref="{filename}"/>"#),
     )?;
 
     content_builder.add(r#"</spine><guide>"#);
@@ -203,7 +203,7 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
         &mut 0,
         &mut content_builder,
         epub.contents.as_deref(),
-        &|filename, reference_type| {
+        |filename, reference_type| {
             let (ref_type, title) = reference_type.type_and_title();
             format!(r#"<reference type="{ref_type}" title="{title}" href="{filename}"/>"#,)
         },
@@ -226,22 +226,19 @@ pub fn content_opf(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>
 /// * `file_number`: A mutable counter to assign unique filenames/IDs to content documents.
 /// * `cb`: A mutable reference to the `ContentBuilder` to append the generated XML.
 /// * `contents`: An `Option` containing a slice of the current level of `Content` to process.
-/// * `f`: A closure that takes the generated filename and its `ReferenceType` and
+/// * `f`: A function pointer that takes the generated filename and its `ReferenceType` and
 ///   returns the specific XML element string to be added (e.g., a `<item>` tag).
 ///
 /// # Returns
 ///
 /// Returns `crate::Result<()>`, signaling an error if a content filename is invalid
 /// (not ending with `.xhtml`).
-fn create_content_chain<F>(
+fn create_content_chain(
     file_number: &mut usize,
     cb: &mut ContentBuilder,
     contents: Option<&[Content<'_>]>,
-    f: &F,
-) -> crate::Result
-where
-    F: Fn(String, &ReferenceType) -> String,
-{
+    f: fn(String, &ReferenceType) -> String,
+) -> crate::Result {
     if let Some(contents) = contents {
         for con in contents {
             *file_number += 1;
@@ -522,7 +519,11 @@ mod tests {
         let mut play_order = 0;
         let mut file_number = 0;
 
-        let result = contents_to_nav_point(&mut play_order, &mut file_number, &mock_epub.0.contents.unwrap());
+        let result = contents_to_nav_point(
+            &mut play_order,
+            &mut file_number,
+            &mock_epub.0.contents.unwrap(),
+        );
 
         assert!(result.is_some());
         let xml = cleaner(result.unwrap());
@@ -552,7 +553,11 @@ mod tests {
         let mut play_order = 0;
         let mut file_number = 0;
 
-        let result = contents_to_nav_point(&mut play_order, &mut file_number, &mock_epub.0.contents.unwrap());
+        let result = contents_to_nav_point(
+            &mut play_order,
+            &mut file_number,
+            &mock_epub.0.contents.unwrap(),
+        );
         assert!(result.is_some());
         let xml = cleaner(result.unwrap());
 

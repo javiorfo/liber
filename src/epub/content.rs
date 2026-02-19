@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
     epub::ContentReference,
     output::{file_content::FileContent, xml},
@@ -173,8 +175,11 @@ impl<'a> Content<'a> {
         let filepath = format!("OEBPS/{}", self.filename(*number));
         let mut file_contents = Vec::new();
 
-        let xhtml_content =
-            xml::async_format(self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet)).await?;
+        let xhtml_content = xml::async_format(
+            self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet)
+                .into_owned(),
+        )
+        .await?;
 
         file_contents.push(FileContent::new(filepath.to_string(), xhtml_content));
 
@@ -204,7 +209,7 @@ impl<'a> Content<'a> {
     }
 
     /// Wraps the content body and necessary boilerplate into a complete XHTML 1.1 document string.
-    fn xhtml(&self, text: &str, add_stylesheet: bool) -> String {
+    fn xhtml(&self, text: &'a str, add_stylesheet: bool) -> Cow<'a, str> {
         if !text.starts_with(r#"<?xml version="1.0" encoding="utf-8"?>"#) {
             let stylesheet = if add_stylesheet {
                 r#"<link href="style.css" rel="stylesheet" type="text/css"/>"#
@@ -212,15 +217,15 @@ impl<'a> Content<'a> {
                 ""
             };
 
-            format!(
+            Cow::Owned(format!(
                 r#"<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
             <html xmlns="http://www.w3.org/1999/xhtml"><head><title>{}</title>{}</head>{}</html>"#,
                 self.title(),
                 stylesheet,
                 text
-            )
+            ))
         } else {
-            text.to_string()
+            Cow::Borrowed(text)
         }
     }
 }

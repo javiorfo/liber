@@ -76,11 +76,10 @@ impl ContentReference {
     /// * `xhtml`: The base filename (e.g., `c01.xhtml`) this reference points to.
     /// * `number`: A sequential number used for generating a default anchor ID if `self.id` is `None`.
     pub(crate) fn reference_name(&self, xhtml: &str, number: usize) -> String {
-        if let Some(ref id) = self.id {
-            format!("{xhtml}#{id}")
-        } else {
-            format!("{xhtml}#id{number:02}")
-        }
+        self.id
+            .as_ref()
+            .map(|id| format!("{xhtml}#{id}"))
+            .unwrap_or(format!("{xhtml}#id{number:02}"))
     }
 }
 
