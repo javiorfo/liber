@@ -151,7 +151,7 @@ impl<'a> Content<'a> {
         let xhtml_content =
             xml::format(&self.xhtml(std::str::from_utf8(self.body)?, add_stylesheet))?;
 
-        file_contents.push(FileContent::new(filepath.to_string(), xhtml_content));
+        file_contents.push(FileContent::new(filepath, xhtml_content));
 
         if let Some(ref subcontents) = self.subcontents {
             for content in subcontents {
@@ -195,11 +195,11 @@ impl<'a> Content<'a> {
     /// Gets the final output filename for this content unit.
     ///
     /// If `filename` is set, it uses that; otherwise, it formats a sequential name like `c01.xhtml`.
-    pub(crate) fn filename(&self, number: usize) -> String {
+    pub(crate) fn filename(&self, number: usize) -> Cow<'_, str> {
         if let Some(ref filename) = self.filename {
-            filename.clone()
+            Cow::Borrowed(filename)
         } else {
-            format!("c{number:02}.xhtml")
+            Cow::Owned(format!("c{number:02}.xhtml"))
         }
     }
 

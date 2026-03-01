@@ -242,7 +242,7 @@ fn create_content_chain(
     if let Some(contents) = contents {
         for con in contents {
             *file_number += 1;
-            let filename = con.filename(*file_number);
+            let filename = con.filename(*file_number).into_owned();
             if !filename.ends_with(".xhtml") {
                 return Err(crate::Error::ContentFilename(filename));
             }
@@ -285,7 +285,7 @@ pub fn toc_ncx(epub: &Epub<'_>) -> crate::Result<FileContent<String, String>> {
     content_builder.add_optional(
         epub.contents
             .as_ref()
-            .and_then(|contents| contents_to_nav_point(&mut 0, &mut 0, contents)),
+            .map(|contents| contents_to_nav_point(&mut 0, &mut 0, contents)),
     );
 
     content_builder.add(r#"</navMap></ncx>"#);
@@ -314,7 +314,7 @@ fn contents_to_nav_point(
     play_order: &mut usize,
     file_number: &mut usize,
     contents: &[Content<'_>],
-) -> Option<String> {
+) -> String {
     let mut result = String::new();
     for content in contents {
         *play_order += 1;
@@ -331,7 +331,7 @@ fn contents_to_nav_point(
             content_references = content
                 .content_references
                 .as_ref()
-                .and_then(|content_references| content_references_to_nav_point(
+                .map(|content_references| content_references_to_nav_point(
                     (current_play_order, filename),
                     play_order,
                     "",
@@ -342,13 +342,13 @@ fn contents_to_nav_point(
             subs = content
                 .subcontents
                 .as_ref()
-                .and_then(|s| contents_to_nav_point(play_order, file_number, s))
+                .map(|s| contents_to_nav_point(play_order, file_number, s))
                 .unwrap_or_default(),
         );
         result.push_str(&nav_point);
     }
 
-    Some(result)
+    result
 }
 
 /// A recursive private helper function to generate nested `navPoint` elements
@@ -375,7 +375,7 @@ fn content_references_to_nav_point(
     toc_index: &str,
     content_references: &[ContentReference],
     link_number: &mut usize,
-) -> Option<String> {
+) -> String {
     let mut result = String::new();
 
     let (prefix, mut toc_number) = toc_index
@@ -403,7 +403,7 @@ fn content_references_to_nav_point(
             subcontent_references = content_reference
                 .subcontent_references
                 .as_ref()
-                .and_then(|subcontent_references| content_references_to_nav_point(
+                .map(|subcontent_references| content_references_to_nav_point(
                     current_xhtml,
                     play_order,
                     &format!("{current_toc}-"),
@@ -415,7 +415,7 @@ fn content_references_to_nav_point(
         result.push_str(&nav_point);
     }
 
-    Some(result)
+    result
 }
 
 #[cfg(test)]
@@ -525,8 +525,7 @@ mod tests {
             &mock_epub.0.contents.unwrap(),
         );
 
-        assert!(result.is_some());
-        let xml = cleaner(result.unwrap());
+        let xml = cleaner(result);
 
         assert!(xml.contains(r#"<navPoint id="navPoint-1" playOrder="1"><navLabel><text>Main Chapter</text></navLabel><content src="c01.xhtml"/>"#));
         assert!(xml.contains(r#"<navPoint id="navPoint-2" playOrder="2"><navLabel><text>Section 1.1</text></navLabel><content src="c02.xhtml"/></navPoint>"#));
@@ -558,8 +557,8 @@ mod tests {
             &mut file_number,
             &mock_epub.0.contents.unwrap(),
         );
-        assert!(result.is_some());
-        let xml = cleaner(result.unwrap());
+
+        let xml = cleaner(result);
 
         assert!(xml.contains(r#"<navPoint id="navPoint-1" playOrder="1"><navLabel><text>Chapter with Refs</text></navLabel><content src="c01.xhtml"/>"#));
         assert!(xml.contains(r#"<navPoint id="navPoint-1-1" playOrder="2"><navLabel><text>Ref A</text></navLabel><content src="c01.xhtml#id01"/></navPoint>"#));
@@ -588,8 +587,7 @@ mod tests {
             &mut link_number,
         );
 
-        assert!(result.is_some());
-        let xml = cleaner(result.unwrap());
+        let xml = cleaner(result);
 
         assert!(xml.contains(r#"<navPoint id="navPoint-5-1" playOrder="11"><navLabel><text>Level 1 Ref 1</text></navLabel><content src="some.xhtml#id01"/>"#));
         assert!(xml.contains(r#"<navPoint id="navPoint-5-1-1" playOrder="12"><navLabel><text>Level 2 Ref 1</text></navLabel><content src="some.xhtml#id02"/>"#));
